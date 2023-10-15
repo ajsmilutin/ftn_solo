@@ -1,0 +1,107 @@
+<mujoco>
+    <compiler angle="radian" meshdir="meshes" autolimits="true"/>
+    <asset>
+        <mesh file="solo_12_base.stl"/>
+        <mesh file="solo12_hip_fe_fl.stl"/>
+        <mesh file="solo12_hip_fe_hl.stl"/>
+        <mesh file="solo12_hip_fe_fr.stl"/>
+        <mesh file="solo12_hip_fe_hr.stl"/>
+        <mesh file="solo12_upper_leg_left_side.stl"/>
+        <mesh file="solo_lower_leg_v2_left_side.stl"/>
+        <mesh file="solo12_upper_leg_right_side.stl"/>
+        <mesh file="solo_lower_leg_v2_right_side.stl"/>
+    </asset>
+    <worldbody>
+        <light diffuse=".5 .5 .5" pos="0 0 3" dir="0 0 -1"/>
+
+        <geom type="plane" size="4 4 0.1" rgba="1 1 1 1"/>
+
+        <body name="base" pos="0 0 0.35" euler="0 0 0">
+            <joint type="free"/>
+            <inertial mass="1.25123725" pos="0 0 0" fullinertia="0.00266220 0.01388510 0.01605370 -0.00003684 -0.00001716 -0.00000009"/>
+            <geom type="mesh" mesh="solo_12_base"/>
+            <body name="FL_SHOULDER" pos="0.2141 0.08750000000000001 0">
+                <joint name="FL_HAA" type="hinge" axis="1 0 0" damping="0.01"/>
+                <geom type="mesh" mesh="solo12_hip_fe_fl"/>
+                <inertial mass="0.14196048" pos="-0.09407251 -0.00438935 0.00001384" fullinertia="0.00002802 0.00038264 0.00038050 0.00003687 -0.00000009 0.00000000"/>
+                <body name="FL_UPPER_LEG" pos="-0.0195 0.014 0">
+                    <joint name="FL_HFE" type="hinge" axis="0 1 0" damping="0.01"/>
+                    <geom type="mesh" mesh="solo12_upper_leg_left_side"/>
+                    <inertial mass="0.14737324" pos="0.00001530 0.01767640 -0.07838230" fullinertia="0.00041540 0.00041637 0.00002982 0.00000000 0.00000010 -0.00004589"/>
+                    <body name="FL_LOWER_LEG" pos="0 0.037450000000000004 -0.16">
+                        <joint name="FL_KFE" type="hinge" axis="0 1 0" damping="0.01"/>
+                        <geom type="mesh" mesh="solo_lower_leg_v2_left_side"/>
+                        <inertial mass="0.02318294" pos="0.00000000 0.00776716 -0.07003876" fullinertia="0.00008508 0.00008580 0.00000139 0.00000000 0.00000000 -0.00000200"/>
+                        <site name="FL_FOOT" pos="0 0.009000000000000001 -0.16" size = "0.025" rgba="0.9 0.2 0.2 0.2"/>
+                    </body>
+                </body>
+            </body>
+            <body name="HL_SHOULDER" pos="-0.2141 0.08750000000000001 0">
+                <joint name="HL_HAA" type="hinge" axis="1 0 0" damping="0.01"/>
+                <geom type="mesh" mesh="solo12_hip_fe_hl"/>
+                <inertial mass="0.14196048" pos="0.09407251 -0.00438935 -0.00001384" fullinertia="0.00002802 0.00038264 0.00038050 -0.00003687 -0.00000009 0.00000000"/>
+                <body name="HL_UPPER_LEG" pos="0.0195 0.014 0">
+                    <joint name="HL_HFE" type="hinge" axis="0 1 0" damping="0.01"/>
+                    <geom type="mesh" mesh="solo12_upper_leg_left_side"/>
+                    <inertial mass="0.14737324" pos="0.00001530 0.01767640 -0.07838230" fullinertia="0.00041540 0.00041637 0.00002982 0.00000000 0.00000010 -0.00004589"/>
+                    <body name="HL_LOWER_LEG" pos="0 0.037450000000000004 -0.16">
+                        <joint name="HL_KFE" type="hinge" axis="0 1 0" damping="0.01"/>
+                        <geom type="mesh" mesh="solo_lower_leg_v2_left_side"/>
+                        <inertial mass="0.02318294" pos="0.00000000 0.00776716 -0.07003876" fullinertia="0.00008508 0.00008580 0.00000139 0.00000000 0.00000000 -0.00000200"/>
+                        <site name="HL_FOOT" pos="0 0.009000000000000001 -0.16" size = "0.025" rgba="0.9 0.2 0.2 0.2"/>
+                    </body>
+                </body>
+            </body>
+
+            <body name="FR_SHOULDER" pos="0.2141 -0.08750000000000001 0">
+                <joint name="FR_HAA" type="hinge" axis="1 0 0" damping="0.01"/>
+                <geom type="mesh" mesh="solo12_hip_fe_fr"/>
+                <inertial mass="0.14196048" pos="-0.09407251 0.00438935 -0.00001384" fullinertia="0.00002802 0.00038264 0.00038050 -0.00003687 0.00000009 0.00000000"/>
+                <body name="FR_UPPER_LEG" pos="-0.0195 -0.014 0">
+                    <joint name="FR_HFE" type="hinge" axis="0 1 0" damping="0.01"/>
+                    <geom type="mesh" mesh="solo12_upper_leg_right_side"/>
+                    <inertial mass="0.14737324" pos="-0.00001530 -0.01767640 -0.07838230" fullinertia="0.00041540 0.00041637 0.00002982 0.00000000 -0.00000010 0.00004589"/>
+                    <body name="FR_LOWER_LEG" pos="0 -0.037450000000000004 -0.16">
+                        <joint name="FR_KFE" type="hinge" axis="0 1 0" damping="0.01"/>
+                        <geom type="mesh" mesh="solo_lower_leg_v2_right_side"/>
+                        <inertial mass="0.02318294" pos="0.00000000 -0.00776716 -0.07003876" fullinertia="0.00008508 0.00008580 0.00000139 0.00000000 0.00000000 0.00000200"/>
+                        <site name="FR_FOOT" pos="0 -0.009000000000000001 -0.16" size = "0.025" rgba="0.9 0.2 0.2 0.2"/>
+                    </body>
+                </body>
+            </body>
+            <body name="HR_SHOULDER" pos="-0.2141 -0.08750000000000001 0">
+                <joint name="HR_HAA" type="hinge" axis="1 0 0" damping="0.01"/>
+                <geom type="mesh" mesh="solo12_hip_fe_hr"/>
+                <inertial mass="0.14196048" pos="0.09407251 0.00438935 0.00001384" fullinertia="0.00002802 0.00038264 0.00038050 0.00003687 0.00000009 0.00000000"/>
+                <body name="HR_UPPER_LEG" pos="0.0195 -0.014 0">
+                    <joint name="HR_HFE" type="hinge" axis="0 1 0" damping="0.01"/>
+                    <geom type="mesh" mesh="solo12_upper_leg_right_side"/>
+                    <inertial mass="0.14737324" pos="-0.00001530 -0.01767640 -0.07838230" fullinertia="0.00041540 0.00041637 0.00002982 0.00000000 -0.00000010 0.00004589"/>
+                    <body name="HR_LOWER_LEG" pos="0 -0.037450000000000004 -0.16">
+                        <joint name="HR_KFE" type="hinge" axis="0 1 0" damping="0.01"/>
+                        <geom type="mesh" mesh="solo_lower_leg_v2_right_side"/>
+                        <inertial mass="0.02318294" pos="0.00000000 -0.00776716 -0.07003876" fullinertia="0.00008508 0.00008580 0.00000139 0.00000000 0.00000000 0.00000200"/>
+                        <site name="HR_FOOT" pos="0 -0.009000000000000001 -0.16" size = "0.025" rgba="0.9 0.2 0.2 0.2"/>
+                    </body>
+                </body>
+            </body>
+        </body>
+    </worldbody>
+    <actuator>
+        <general name="fl_haa" joint="FL_HAA" gaintype="fixed" gainprm="20.0" biastype="affine" biasprm="0 -20.0 -0.5" ctrlrange="-1.57 1.57"/>
+        <general name="fl_hfe" joint="FL_HFE" gaintype="fixed" gainprm="10.0" biastype="affine" biasprm="0 -10.0 -0.125" ctrlrange="-3.14 3.14"/>
+        <general name="fl_kfe" joint="FL_KFE" gaintype="fixed" gainprm="5.0" biastype="affine" biasprm="0 -5.0 -0.0625" ctrlrange="-3.14 3.14"/>
+        <general name="hl_haa" joint="HL_HAA" gaintype="fixed" gainprm="20.0" biastype="affine" biasprm="0 -20.0 -0.5" ctrlrange="-1.57 1.57"/>
+        <general name="hl_hfe" joint="HL_HFE" gaintype="fixed" gainprm="10.0" biastype="affine" biasprm="0 -10.0 -0.125" ctrlrange="-3.14 3.14"/>
+        <general name="hl_kfe" joint="HL_KFE" gaintype="fixed" gainprm="5.0" biastype="affine" biasprm="0 -5.0 -0.0625" ctrlrange="-3.14 3.14"/>
+        <general name="fr_haa" joint="FR_HAA" gaintype="fixed" gainprm="20.0" biastype="affine" biasprm="0 -20.0 -0.5" ctrlrange="-1.57 1.57"/>
+        <general name="fr_hfe" joint="FR_HFE" gaintype="fixed" gainprm="10.0" biastype="affine" biasprm="0 -10.0 -0.125" ctrlrange="-3.14 3.14"/>
+        <general name="fr_kfe" joint="FR_KFE" gaintype="fixed" gainprm="5.0" biastype="affine" biasprm="0 -5.0 -0.0625" ctrlrange="-3.14 3.14"/>
+        <general name="hr_haa" joint="HR_HAA" gaintype="fixed" gainprm="20.0" biastype="affine" biasprm="0 -20.0 -0.5" ctrlrange="-1.57 1.57"/>
+        <general name="hr_hfe" joint="HR_HFE" gaintype="fixed" gainprm="10.0" biastype="affine" biasprm="0 -10.0 -0.125" ctrlrange="-3.14 3.14"/>
+        <general name="hr_kfe" joint="HR_KFE" gaintype="fixed" gainprm="5.0" biastype="affine" biasprm="0 -5.0 -0.0625" ctrlrange="-3.14 3.14"/>
+    </actuator>
+    <sensor>
+        <touch name="fl_touch" site="FL_FOOT"/>
+    </sensor>
+</mujoco>
