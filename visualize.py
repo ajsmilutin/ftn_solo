@@ -4,7 +4,7 @@ import numpy as np
 import mujoco
 import mujoco.viewer
 from controllers.controller import Controller
-from utils.visualization_utils import draw_frame
+from utils.visualization_utils import draw_frame, draw_surface
 
 m = mujoco.MjModel.from_xml_path('solo_model.xml')
 d = mujoco.MjData(m)
@@ -33,6 +33,8 @@ def update_scene(scn, model, data):
     scn.ngeom = 0
     mujoco.mju_quat2Mat(rot, robot_controler.Q)
     draw_frame(scn, robot_controler.pos, rot.reshape((3, 3)), 0.005, 0.2)
+    if robot_controler.surface:
+        draw_surface(scn, robot_controler.surface.position, robot_controler.surface.R, 1)
 
 
 def key_callback(keycode):
@@ -57,8 +59,8 @@ with mujoco.viewer.launch_passive(m, d, show_right_ui=False, key_callback=key_ca
         mujoco.mj_step(m, d)
 
         # Pick up changes to the physics state, apply perturbations, update options from GUI.
-        viewer.sync()
         update_scene(viewer.user_scn, m, d)
+        viewer.sync()
 
         # Rudimentary time keeping, will drift relative to wall clock.
         time_until_next_step = m.opt.timestep - (time.time() - step_start)
