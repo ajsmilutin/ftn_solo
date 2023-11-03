@@ -17,3 +17,9 @@ def draw_frame(scene, pos, rot, radius, length):
     draw_arrow(scene, pos, rot[:, 0]*length, radius, [1, 0.2, 0.2, 1])
     draw_arrow(scene, pos, rot[:, 1]*length, radius, [0.2, 1.0, 0.2, 1])
     draw_arrow(scene, pos, rot[:, 2]*length, radius, [0.2, 0.2, 1, 1])
+
+
+def draw_surface(scene, pos, rot, length, color=[1, 1, 0.2, 1]):
+    scene.ngeom += 1
+    mj.mjv_initGeom(scene.geoms[scene.ngeom-1],
+                    mj.mjtGeom.mjGEOM_PLANE, [length, length, 0.002], pos, rot.flatten(), color)
