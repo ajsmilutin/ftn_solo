@@ -8,8 +8,11 @@ from utils.visualization_utils import draw_frame
 
 m = mujoco.MjModel.from_xml_path('solo_model.xml')
 d = mujoco.MjData(m)
+paused = False
+leave = False
 
 robot_controler = Controller()
+
 
 def controller(model, data):
     q = data.qpos[7:]
@@ -18,7 +21,7 @@ def controller(model, data):
     reading = {}
     for sensor in touch_sensors:
         name = sensor + "_touch"
-        reading[name] = data.sensor(name).data[0]>0
+        reading[name] = data.sensor(name).data[0] > 0
     sensor = {"imu": (data.sensor("angular-velocity").data, data.sensor(
         "linear-acceleration").data, data.sensor("magnetometer").data),
         "touch": reading}
@@ -32,13 +35,22 @@ def update_scene(scn, model, data):
     draw_frame(scn, robot_controler.pos, rot.reshape((3, 3)), 0.005, 0.2)
 
 
-with mujoco.viewer.launch_passive(m, d, show_right_ui=False) as viewer:
-    # Close the viewer automatically after 30 wall-seconds.
-    start = time.time()
+def key_callback(keycode):
+    if chr(keycode) == ' ':
+        global paused
+        paused = not paused
+    elif keycode == 256:  # ESC
+        global leave
+        leave = True
+
+
+with mujoco.viewer.launch_passive(m, d, show_right_ui=False, key_callback=key_callback) as viewer:
     mujoco.set_mjcb_control(controller)
 
-
-    while viewer.is_running() and time.time() - start < 30:
+    # Close viewer on ESC keyboard press
+    while viewer.is_running() and not leave:
+        if paused:
+            continue
         step_start = time.time()
         # mj_step can be replaced with code that also evaluates
         # a policy and applies a control signal before stepping the physics.
@@ -52,3 +64,5 @@ with mujoco.viewer.launch_passive(m, d, show_right_ui=False) as viewer:
         time_until_next_step = m.opt.timestep - (time.time() - step_start)
         if time_until_next_step > 0:
             time.sleep(time_until_next_step)
+
+del robot_controler
