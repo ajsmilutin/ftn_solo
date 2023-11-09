@@ -1,4 +1,5 @@
 import numpy as np
+import scipy
 from transitions import Machine
 from robot_properties_solo.solo12wrapper import Solo12Robot
 from ahrs.filters.madgwick import Madgwick
@@ -31,6 +32,7 @@ class Controller():
                      self.robot.hl_index, self.robot.hr_index]
         self.foot_radius = 0.0175
         self.surface = None
+        self.eef_trajectory = None
 
     def reset_pose(self, t, q, qv, sensor):
         pos = np.zeros((3,), dtype=np.float64)
@@ -68,7 +70,31 @@ class Controller():
         self.surface = Plane()
         self.surface.init_from_points(poses, np.asmatrix(self.pos).T)
         poses_plane = self.surface.transform_to_plane(poses)
-        center_pose = self.surface.transform_to_plane(self.pos)
+        center_pose = self.surface.transform_to_plane(np.asmatrix(self.pos).T)
+        eef_pose = self.robot.pin_robot.data.oMf[self.eefs[0]].translation
+        shoulder_pose = self.robot.pin_robot.data.oMf[self.robot.pin_robot.model.getFrameId("FL_UPPER_LEG")].translation
+        self.eef_trajectory = self.compute_eef_trajectory(eef_pose, shoulder_pose, 0.07, 0, 0.04)
+
+
+    def compute_eef_trajectory(self, eef_pos, end_ref, dx=0.07, dy=0.0, dz=0.04, num_of_points = 20):
+        start_pos = np.asarray(self.surface.transform_to_plane(np.asmatrix(eef_pos).T))
+        end_pos = np.asarray(self.surface.transform_to_plane(np.asmatrix(end_ref).T)) + np.array([[dx], [dy], [0]])
+
+        pos_dx = end_pos[0][0] - start_pos[0][0]
+        pos_dy = end_pos[1][0] - start_pos[1][0]
+        dist = np.sqrt(pos_dx*pos_dx+pos_dy*pos_dy)
+        k = pos_dy / pos_dx
+
+        d = np.array([0, dist/2, dist], dtype=np.float64)
+        z = np.array([start_pos[2][0], start_pos[2][0]+dz, start_pos[2][0]], dtype=np.float64)
+        spline = scipy.interpolate.CubicSpline(d, z)
+
+        d_points = np.linspace(d[0], d[2], 20)
+        z_points = spline(d_points)
+        dx_points = np.sign(pos_dx)*np.sqrt(np.square(d_points)/(1+k*k))
+        x_points = start_pos[0][0] + dx_points
+        y_points = start_pos[1][0] + k*dx_points
+        return self.surface.transform_to_world(np.asarray([x_points, y_points, z_points]))
 
     def do_step(self, t, q, qv, sensor):
         return self.do_nothing(t, q, qv, sensor)
