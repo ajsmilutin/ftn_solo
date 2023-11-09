@@ -21,3 +21,6 @@ class Plane():
 
     def transform_to_plane(self, points):
         return np.matmul(self.R.T, points - self.position)
+
+    def transform_to_world(self, points):
+        return np.matmul(self.R, points) + self.position
