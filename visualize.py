@@ -6,7 +6,7 @@ import mujoco.viewer
 from controllers.controller import Controller
 from utils.visualization_utils import draw_frame, draw_surface
 
-m = mujoco.MjModel.from_xml_path('solo_model.xml')
+m = mujoco.MjModel.from_xml_path('solo12_model.xml')
 d = mujoco.MjData(m)
 paused = False
 leave = False
