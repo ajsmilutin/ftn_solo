@@ -4,7 +4,7 @@ import numpy as np
 import mujoco
 import mujoco.viewer
 from controllers.controller import Controller
-from utils.visualization_utils import draw_frame, draw_surface, draw_lines
+from utils.visualization_utils import draw_frame, draw_surface, draw_line, draw_lines
 
 m = mujoco.MjModel.from_xml_path('solo12_model.xml')
 d = mujoco.MjData(m)
@@ -35,8 +35,12 @@ def update_scene(scn, model, data):
     draw_frame(scn, robot_controler.pos, rot.reshape((3, 3)), 0.005, 0.2)
     if robot_controler.surface:
         draw_surface(scn, robot_controler.surface.position, robot_controler.surface.R, 1)
-    if robot_controler.eef_trajectory is not None:
-        draw_lines(scn, robot_controler.eef_trajectory)
+
+    if robot_controler.eef_trajectory.end_time > 0:
+        t = np.linspace(robot_controler.eef_trajectory.start_time, robot_controler.eef_trajectory.end_time, 10)
+        points = robot_controler.eef_trajectory.spline(t)
+        draw_lines(scn, points)
+
 
 
 def key_callback(keycode):

@@ -27,12 +27,15 @@ def draw_surface(scene, pos, rot, length, color=[1, 1, 0.2, 1]):
 
 def draw_line(scene, start_point, end_point, width=2, color=[0.2, 0.2, 1, 1]):
     scene.ngeom += 1
+    start_point = start_point.flatten()
+    end_point = end_point.flatten()
     dist = np.linalg.norm(start_point - end_point)
     mj.mjv_initGeom(scene.geoms[scene.ngeom-1], mj.mjtGeom.mjGEOM_LINE, [dist, dist, dist],
                     start_point, np.eye(3, 3, dtype=np.float64).flatten(), color)
-    mj.mjv_connector(scene.geoms[scene.ngeom-1], mj.mjtGeom.mjGEOM_LINE, width, start_point, end_point)
+    mj.mjv_connector(scene.geoms[scene.ngeom-1], mj.mjtGeom.mjGEOM_LINE, width, start_point,
+                     end_point)
 
 
 def draw_lines(scene, points, width=2, color=[0.2, 0.2, 1, 1]):
-    for i in range(points.shape[1] - 1):
-        draw_line(scene, points[:, i].T, points[:, i + 1].T, width, color)
+    for i in range(points.shape[0] - 1):
+        draw_line(scene, points[i, :], points[i + 1, :], width, color)

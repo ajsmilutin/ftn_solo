@@ -3,3 +3,4 @@ pin
 transitions
 ahrs
 xacro
+scipy
