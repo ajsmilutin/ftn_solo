@@ -146,14 +146,10 @@ class Controller():
 
         pos_dx = end_pos[0][0] - start_pos[0][0]
         pos_dy = end_pos[1][0] - start_pos[1][0]
-        dist = np.sqrt(pos_dx * pos_dx + pos_dy * pos_dy)
-        k = pos_dy / pos_dx
 
         t_points = np.array([t, t + step_duration / 2, self.total_time], dtype=np.float64)
-        d_points = np.array([0, dist / 2, dist], dtype=np.float64)
-        dx_points = np.sign(pos_dx) * np.sqrt(np.square(d_points) / (1 + k * k))
-        x_points = start_pos[0][0] + dx_points
-        y_points = start_pos[1][0] + k * dx_points
+        x_points = np.array([start_pos[0][0], start_pos[0][0] + pos_dx / 2, end_pos[0][0]], dtype=np.float64)
+        y_points = np.array([start_pos[1][0], start_pos[1][0] + pos_dy / 2, end_pos[1][0]], dtype=np.float64)
         z_points = np.array([start_pos[2][0], start_pos[2][0] + dz, start_pos[2][0]], dtype=np.float64)
         xyz_points = self.surface.transform_to_world(np.asarray([x_points, y_points, z_points]))
         self.eef_trajectory.spline = CubicSpline(t_points, xyz_points.T)
