@@ -17,7 +17,7 @@
 
         <geom type="plane" size="4 4 0.1" rgba="1 1 1 1"/>
 
-        <body name="BASE_FRONT" pos="0 0 0.35" euler="0 0 0">
+        <body name="base_front" pos="0 0 0.35" euler="0 0 0">
             <joint type="free"/>
             <inertial mass="0.6256" pos="0.09415 0 0" diaginertia="0.0013311 0.00182818 0.0029124"/>
             <geom type="mesh" mesh="solo_13_base_front"/>
@@ -53,10 +53,10 @@
                     </body>
                 </body>
             </body>
-            <body name="BASE_BACK">
+            <body name="base_back">
                 <joint name="TR" type="hinge" axis="1 0 0" range="-2.0943 2.0943"/>
                 <inertial mass="0.6256" pos="-0.09415 0 0" diaginertia="0.0013311 0.00182818 0.0029124"/>
-                <geom type="mesh" mesh="solo_13_base_back"/>                
+                <geom type="mesh" mesh="solo_13_base_back"/>
                 <body name="HL_SHOULDER" pos="-0.2141 0.08750000000000001 0">
                     <joint name="HL_HAA" type="hinge" axis="1 0 0" range="-1.57 1.57"/>
                     <geom type="mesh" mesh="solo12_hip_fe_hl"/>
@@ -94,16 +94,16 @@
         </body>
     </worldbody>
     <actuator>
-        <general name="torso_rotate" joint="TR" gaintype="fixed" gainprm="40.0" biastype="affine" biasprm="0 -40.0 -0.5" ctrlrange="-2.0943 2.0943"/> 
         <general name="fl_haa" joint="FL_HAA" gaintype="fixed" gainprm="40.0" biastype="affine" biasprm="0 -40.0 -0.5" ctrlrange="-1.57 1.57"/>
         <general name="fl_hfe" joint="FL_HFE" gaintype="fixed" gainprm="20.0" biastype="affine" biasprm="0 -20.0 -0.125" ctrlrange="-3.14 3.14"/>
         <general name="fl_kfe" joint="FL_KFE" gaintype="fixed" gainprm="10.0" biastype="affine" biasprm="0 -10.0 -0.0625" ctrlrange="-3.14 3.14"/>
-        <general name="hl_haa" joint="HL_HAA" gaintype="fixed" gainprm="40.0" biastype="affine" biasprm="0 -40.0 -0.5" ctrlrange="-1.57 1.57"/>
-        <general name="hl_hfe" joint="HL_HFE" gaintype="fixed" gainprm="20.0" biastype="affine" biasprm="0 -20.0 -0.125" ctrlrange="-3.14 3.14"/>
-        <general name="hl_kfe" joint="HL_KFE" gaintype="fixed" gainprm="10.0" biastype="affine" biasprm="0 -10.0 -0.0625" ctrlrange="-3.14 3.14"/>
         <general name="fr_haa" joint="FR_HAA" gaintype="fixed" gainprm="40.0" biastype="affine" biasprm="0 -40.0 -0.5" ctrlrange="-1.57 1.57"/>
         <general name="fr_hfe" joint="FR_HFE" gaintype="fixed" gainprm="20.0" biastype="affine" biasprm="0 -20.0 -0.125" ctrlrange="-3.14 3.14"/>
         <general name="fr_kfe" joint="FR_KFE" gaintype="fixed" gainprm="10.0" biastype="affine" biasprm="0 -10.0 -0.0625" ctrlrange="-3.14 3.14"/>
+        <general name="torso_rotate" joint="TR" gaintype="fixed" gainprm="40.0" biastype="affine" biasprm="0 -40.0 -0.5" ctrlrange="-2.0943 2.0943"/>
+        <general name="hl_haa" joint="HL_HAA" gaintype="fixed" gainprm="40.0" biastype="affine" biasprm="0 -40.0 -0.5" ctrlrange="-1.57 1.57"/>
+        <general name="hl_hfe" joint="HL_HFE" gaintype="fixed" gainprm="20.0" biastype="affine" biasprm="0 -20.0 -0.125" ctrlrange="-3.14 3.14"/>
+        <general name="hl_kfe" joint="HL_KFE" gaintype="fixed" gainprm="10.0" biastype="affine" biasprm="0 -10.0 -0.0625" ctrlrange="-3.14 3.14"/>
         <general name="hr_haa" joint="HR_HAA" gaintype="fixed" gainprm="40.0" biastype="affine" biasprm="0 -40.0 -0.5" ctrlrange="-1.57 1.57"/>
         <general name="hr_hfe" joint="HR_HFE" gaintype="fixed" gainprm="20.0" biastype="affine" biasprm="0 -20.0 -0.125" ctrlrange="-3.14 3.14"/>
         <general name="hr_kfe" joint="HR_KFE" gaintype="fixed" gainprm="10.0" biastype="affine" biasprm="0 -10.0 -0.0625" ctrlrange="-3.14 3.14"/>
