@@ -36,7 +36,7 @@ def update_scene(scn, model, data):
     if robot_controler.surface:
         draw_surface(scn, robot_controler.surface.position, robot_controler.surface.R, 1)
 
-    if robot_controler.eef_trajectory.end_time > 0:
+    if robot_controler.eef_trajectory is not None:
         t = np.linspace(robot_controler.eef_trajectory.start_time, robot_controler.eef_trajectory.end_time, 10)
         points = robot_controler.eef_trajectory.spline(t)
         draw_lines(scn, points)

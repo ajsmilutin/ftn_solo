@@ -29,7 +29,7 @@ class Plane():
 
 @dataclass
 class Trajectory:
-    start_time = np.float64(0)
-    end_time = np.float64(0)
+    start_time: np.float64
+    end_time: np.float64
     eef_ID: int
-    spline = CubicSpline
+    spline: CubicSpline

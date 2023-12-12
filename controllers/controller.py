@@ -12,7 +12,7 @@ class Controller():
     step_dx = 0.1
     step_dy = 0.03
     step_dz = 0.02
-    step_duration = 4
+    step_duration = 4.0
 
     def __init__(self):
         self.rest_pose = np.array(
@@ -40,7 +40,7 @@ class Controller():
             self.shoulders.append(self.robot.pin_robot.model.getFrameId(leg + "_UPPER_LEG"))
         self.foot_radius = 0.0175
         self.surface = None
-        self.eef_trajectory = Trajectory
+        self.eef_trajectory = None
         self.sensor = None
         self.ref_pos = np.ndarray((3, len(self.eefs)), dtype=np.float64)
         self.init_pose()
@@ -63,32 +63,33 @@ class Controller():
             return
         ref_pos = np.zeros((num_of_contacts * 3, 1), dtype=np.float64)
         eef_pos = np.zeros((num_of_contacts * 3, 1), dtype=np.float64)
-        full_J = np.zeros((3 * num_of_contacts, 6), dtype=np.float64)
-        count = 0
+        full_J = np.zeros((3 * num_of_contacts, 3), dtype=np.float64)
+        v = np.zeros((3, 1), dtype=np.float64)
+        leg_num = 0
         for i in range(len(touch_sensors)):
             if touch_sensors[i]:
-                ref_pos[count * 3: (count+1) * 3, 0] = self.ref_pos[:, i]
-                count += 1
-        counter = 0
+                ref_pos[leg_num * 3: (leg_num+1) * 3, 0] = self.ref_pos[:, i]
+                leg_num += 1
         error = np.linalg.norm(ref_pos - eef_pos)
-        while error > 0.0001 and counter < 20:
-            if counter > 0:
-                v = np.linalg.pinv(full_J).dot(ref_pos - eef_pos)
-                self.pos += 0.1 * v[:3, 0]
-
+        old_error = 0
+        delta_error = np.abs(error - old_error)
+        while error > 0.0001 and delta_error > 0.000001:
+            self.pos += 0.1 * v[:3, 0]
             self.full_q[:3] = self.pos
             self.robot.forward_robot(self.full_q, self.full_dq)
-            count = 0
+            leg_num = 0
             for i in range(len(touch_sensors)):
                 if not touch_sensors[i]:
                     continue
-                eef_pos[3 * count: 3 * (count + 1), 0] = self.robot.pin_robot.data.oMf[self.eefs[i]].translation
-                J = pin.getFrameJacobian(self.robot.pin_robot.model, self.robot.pin_robot.data,
-                                         self.eefs[i], pin.WORLD)
-                full_J[3 * count:3 * (count + 1), :] = J[:3, :6]
-                count += 1
+                eef_pos[3 * leg_num: 3 * (leg_num + 1), 0] = self.robot.pin_robot.data.oMf[self.eefs[i]].translation
+                full_J[3 * leg_num:3 * (leg_num + 1), :] = pin.getFrameJacobian(self.robot.pin_robot.model,
+                                                                            self.robot.pin_robot.data,
+                                                                            self.eefs[i], pin.WORLD)[:3, :3]
+                leg_num += 1
+            old_error = error
             error = np.linalg.norm(ref_pos - eef_pos)
-            counter += 1
+            delta_error = np.abs(error - old_error)
+            v = np.linalg.pinv(full_J).dot(ref_pos - eef_pos)
 
     def init_pose(self):
         self.full_q = np.hstack((self.pos, self.Q[1:4], self.Q[0], np.zeros((12,), dtype=np.float64)))
@@ -103,8 +104,6 @@ class Controller():
         self.robot.forward_robot(self.full_q, self.full_dq)
         for index in range(len(self.eefs)):
             self.ref_pos[:, index] = self.robot.pin_robot.data.oMf[self.eefs[index]].translation
-
-
 
     def estimate_state(self, t, q, qv, sensor):
         self.dT = t - self.old_t
@@ -133,37 +132,43 @@ class Controller():
                                     Controller.step_dy, Controller.step_dz,
                                     Controller.step_duration)
 
-    def compute_eef_trajectory(self, t, eef_ID, shoulder_ID, dx=0.07, dy=0.0, dz=0.04, step_duration=4):
+    def compute_eef_trajectory(self, t, eef_ID, shoulder_ID, dx=0.07, dy=0.0, dz=0.04, step_duration=4.0):
         eef_pos = self.robot.pin_robot.data.oMf[eef_ID].translation
         end_ref = self.robot.pin_robot.data.oMf[shoulder_ID].translation
         start_pos = np.asarray(self.surface.transform_to_plane(np.asmatrix(eef_pos).T))
         end_pos = np.asarray(self.surface.transform_to_plane(np.asmatrix(end_ref).T)) + np.array([[dx], [dy], [0]])
-
         self.total_time = t + step_duration
-        self.eef_trajectory.start_time = t
-        self.eef_trajectory.end_time = t + step_duration
-        self.eef_trajectory.eef_ID = eef_ID
-
-        pos_dx = end_pos[0][0] - start_pos[0][0]
-        pos_dy = end_pos[1][0] - start_pos[1][0]
 
         t_points = np.array([t, t + step_duration / 2, self.total_time], dtype=np.float64)
-        x_points = np.array([start_pos[0][0], start_pos[0][0] + pos_dx / 2, end_pos[0][0]], dtype=np.float64)
-        y_points = np.array([start_pos[1][0], start_pos[1][0] + pos_dy / 2, end_pos[1][0]], dtype=np.float64)
+        x_points = np.array([start_pos[0][0], (start_pos[0][0] + end_pos[0][0]) / 2, end_pos[0][0]], dtype=np.float64)
+        y_points = np.array([start_pos[1][0], (start_pos[1][0] + end_pos[1][0]) / 2, end_pos[1][0]], dtype=np.float64)
         z_points = np.array([start_pos[2][0], start_pos[2][0] + dz, start_pos[2][0]], dtype=np.float64)
         xyz_points = self.surface.transform_to_world(np.asarray([x_points, y_points, z_points]))
-        self.eef_trajectory.spline = CubicSpline(t_points, xyz_points.T)
+        self.eef_trajectory = Trajectory(t, self.total_time, eef_ID, CubicSpline(t_points, xyz_points.T))
 
     def do_step(self, t, q, qv, sensor):
         end_point = self.eef_trajectory.spline(t)
         eef_pose = self.robot.pin_robot.data.oMf[self.eef_trajectory.eef_ID].translation
-        error = end_point.T - eef_pose.T
-        J = pin.getFrameJacobian(self.robot.pin_robot.model, self.robot.pin_robot.data,
-                                 self.eef_trajectory.eef_ID, pin.WORLD)
         q_offset = 3 * self.eefs.index(self.eef_trajectory.eef_ID)
-        J = J[:3, 6 + q_offset:9 + q_offset]
-        v = np.linalg.inv(J).dot(error)
-        self.control[q_offset:q_offset + 3] += v * self.dT
+        v = np.zeros((3,), dtype=np.float64)
+        self.full_q[7:] = q
+        self.full_dq[6:] = qv
+        old_error = 0
+        error = np.linalg.norm(end_point.T - eef_pose.T)
+        delta_error = np.abs(error - old_error)
+        while error > 0.00001 and delta_error > 0.001:
+            J = pin.getFrameJacobian(self.robot.pin_robot.model, self.robot.pin_robot.data,
+                                     self.eef_trajectory.eef_ID, pin.WORLD)
+            J = J[:3, 6 + q_offset:9 + q_offset]
+            v = np.linalg.inv(J).dot(end_point.T - eef_pose.T)
+            self.full_q[7 + q_offset:10 + q_offset] += v * self.dT
+            self.robot.forward_robot(self.full_q, self.full_dq)
+            eef_pose = self.robot.pin_robot.data.oMf[self.eef_trajectory.eef_ID].translation
+            old_error = error
+            error = np.linalg.norm(end_point.T - eef_pose.T)
+            delta_error = np.abs(error - old_error)
+
+        self.control[q_offset:q_offset + 3] += self.full_q[7 + q_offset:10 + q_offset] - q[q_offset:q_offset + 3]
         return t > self.eef_trajectory.end_time
 
     def compute_controll(self, t, q, qv, sensor):
