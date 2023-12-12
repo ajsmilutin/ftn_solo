@@ -1,4 +1,6 @@
 import numpy as np
+from dataclasses import dataclass
+from scipy.interpolate import CubicSpline
 
 
 class Plane():
@@ -21,3 +23,13 @@ class Plane():
 
     def transform_to_plane(self, points):
         return np.matmul(self.R.T, points - self.position)
+
+    def transform_to_world(self, points):
+        return np.matmul(self.R, points) + self.position
+
+@dataclass
+class Trajectory:
+    start_time: np.float64
+    end_time: np.float64
+    eef_ID: int
+    spline: CubicSpline
