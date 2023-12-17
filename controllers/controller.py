@@ -10,7 +10,7 @@ class Controller():
 
     def __init__(self):
         self.rest_pose = np.array(
-            [0.0, 0.825, -1.57, 0.0, -0.825, 1.57, 0.0, 0.825, -1.57, 0.0, -0.825, 1.57], dtype=np.float64)
+            [0.0, 0.825, -1.57, 0.0, 0.825, -1.57, 0.0, -0.825, 1.57, 0.0, -0.825, 1.57], dtype=np.float64)
         self.machine = Machine(
             model=self, states=Controller.states, initial='start')
         self.total_time = 10
@@ -31,6 +31,9 @@ class Controller():
                      self.robot.hl_index, self.robot.hr_index]
         self.foot_radius = 0.0175
         self.surface = None
+
+    def get_mjcf(self):
+        return self.robot.mjcf_path
 
     def reset_pose(self, t, q, qv, sensor):
         pos = np.zeros((3,), dtype=np.float64)
