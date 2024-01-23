@@ -1,3 +1,4 @@
+glfw == 2.6.2
 mujoco >= 3.0.0
 pin
 transitions
