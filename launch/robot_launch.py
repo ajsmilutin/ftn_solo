@@ -10,6 +10,10 @@ import os
 def launch_setup(context, *args, **kwargs):
     robot_version = LaunchConfiguration('robot_version', default="solo12")
     sim = LaunchConfiguration('sim', default='False')
+    fixed = LaunchConfiguration('fixed', default='False')
+    start_paused = LaunchConfiguration('start_paused', default='False')
+    pos = LaunchConfiguration('pos', default='[0.0, 0.0, 0.4]')
+    rpy = LaunchConfiguration('rpy', default='[0.0, 0.0, 0.0]')
     robot_version_value = robot_version.perform(context)
     resources = Resources(robot_version_value)
     with open(resources.urdf_path, 'r') as infp:
@@ -32,7 +36,11 @@ def launch_setup(context, *args, **kwargs):
             executable='connector_node',
             name='connector_node',
             parameters=[{'use_sim_time': sim, 'sim': sim,
-                         'robot_version': robot_version_value}]
+                         'robot_version': robot_version_value,
+                         'fixed': fixed,
+                         'start_paused': start_paused,
+                         'pos': pos,
+                         'rpy': rpy}]
     )]
 
 
