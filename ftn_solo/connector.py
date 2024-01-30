@@ -12,6 +12,17 @@ import math
 from robot_properties_solo.robot_resources import Resources
 
 
+def RPY2Quat(rpy):
+    q1 = np.ndarray((4,), dtype=np.float64)
+    q2 = np.ndarray((4,), dtype=np.float64)
+    q3 = np.ndarray((4,), dtype=np.float64)
+    mujoco.mju_axisAngle2Quat(q1, [0, 0, 1], rpy[2])
+    mujoco.mju_axisAngle2Quat(q2, [0, 1, 0], rpy[1])
+    mujoco.mju_mulQuat(q3, q1, q2)
+    mujoco.mju_axisAngle2Quat(q2, [1, 0, 0], rpy[0])
+    mujoco.mju_mulQuat(q1, q3, q2)
+    return q1
+
 class Connector():
     def __init__(self, robot_version, logger, *args, **kwargs) -> None:
         self.resources = Resources(robot_version)
@@ -43,17 +54,20 @@ class RobotConnector(Connector):
 
 
 class MujocoConnector(Connector):
-    def __init__(self, robot_version, logger, use_gui=True, start_paused=False, fixed=True) -> None:
+    def __init__(self, robot_version, logger, use_gui=True, start_paused=False, fixed=False, pos=[0, 0, 0.4], rpy=[0.0, 0.0, 0.0]) -> None:
         super().__init__(robot_version, logger)
         self.model = mujoco.MjModel.from_xml_path(self.resources.mjcf_path)
         self.model.opt.timestep = 1e-3
         self.data = mujoco.MjData(self.model)
+        self.data.qpos[0:3] = pos
+        logger.error(str(rpy))
+        self.data.qpos[3:7] = RPY2Quat(rpy)
+        logger.error(str(self.data.qpos))
+        self.data.qpos[7:] = 0
         if fixed:
-            self.model.body("base").jntnum = 0
-            self.model.body("base").pos = [0, 0, 0.4]
+            self.model.body("base_link").jntnum = 0
         self.joint_names = [self.model.joint(
             i+1).name for i in range(self.model.nu)]
-        self.data.qpos[7:] = 0
         self.paused = start_paused
         self.use_gui = use_gui
         self.viewer = None
@@ -105,6 +119,9 @@ class ConnectorNode(Node):
         self.clock = Clock()
         self.declare_parameter('use_gui', True)
         self.declare_parameter('start_paused', False)
+        self.declare_parameter('fixed', False)
+        self.declare_parameter('pos', [0.0, 0.0, 0.4])
+        self.declare_parameter('rpy', [0.0, 0.0, 0.0])
         self.declare_parameter('robot_version', rclpy.Parameter.Type.STRING)
         self.join_state_pub = self.create_publisher(
             JointState, "/joint_states", 10)
@@ -115,15 +132,19 @@ class ConnectorNode(Node):
                 'use_gui').get_parameter_value().bool_value
             start_paused = self.get_parameter(
                 'start_paused').get_parameter_value().bool_value
+            fixed = self.get_parameter(
+                'fixed').get_parameter_value().bool_value
+            pos = self.get_parameter('pos').get_parameter_value().double_array_value
+            rpy = self.get_parameter('rpy').get_parameter_value().double_array_value
             self.connector = MujocoConnector(robot_version, self.get_logger(),
-                                             use_gui=use_gui, start_paused=start_paused)
+                                             use_gui=use_gui, start_paused=start_paused, fixed=fixed, pos=pos, rpy=rpy)
         else:
             self.connector = RobotConnector(robot_version,  self.get_logger())
 
     def run(self):
         c = 0
         des_pos = np.array(
-            [0.3, 0.9, -1.57, -0.3, 0.9, -1.57])
+            [0.3, 0.9, -1.57, -0.3, 0.9, -1.57, 0.5, 0.3, 0.9, -1.57, -0.3, 0.9, -1.57])
         start = self.get_clock().now()
         joint_state = JointState()
         while self.connector.is_rinning():
@@ -133,8 +154,8 @@ class ConnectorNode(Node):
             else:
                 elapsed = (self.get_clock().now() - start).nanoseconds / 1e9
 
-            torques = 2.5 * (des_pos*0.5*(1-math.cos(5*elapsed)) - position) + \
-                0.000725 * (des_pos*0.5*math.sin(5*elapsed) - velocity)
+            torques = 25 * (des_pos*0.5*(1-math.cos(5*elapsed)) - position) + \
+                0.00725 * (des_pos*0.5*math.sin(5*elapsed) - velocity)
             self.connector.set_torques(torques)
             if self.connector.step():
                 if self.time_publisher:
