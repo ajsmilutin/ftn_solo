@@ -4,3 +4,4 @@ pin
 transitions
 ahrs
 xacro
+pyyaml
