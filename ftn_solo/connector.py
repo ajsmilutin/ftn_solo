@@ -9,6 +9,7 @@ import numpy as np
 from rosgraph_msgs.msg import Clock
 import time
 import math
+import yaml
 from robot_properties_solo.robot_resources import Resources
 
 
@@ -31,12 +32,17 @@ class Connector():
 
 class RobotConnector(Connector):
     def __init__(self, robot_version, logger, *args, **kwargs) -> None:
-        import libodri_control_interface_pywrap as oci
-
         super().__init__(robot_version, logger, *args, **kwargs)
+        import libodri_control_interface_pywrap as oci
+        self.running = True
+        with open(self.resources.config_path, 'r') as stream:
+            try:
+                data = yaml.safe_load(stream)
+                self.joint_names = data["robot"]["joint_modules"]["joint_names"]
+            except Exception as exc:
+                raise exc
         self.robot = oci.robot_from_yaml_file(self.resources.config_path)
         self.robot.initialize(np.array([0]*self.robot.joints.number_motors))
-        self.running = True
 
     def get_data(self):
         self.robot.parse_sensor_data()
@@ -144,7 +150,7 @@ class ConnectorNode(Node):
     def run(self):
         c = 0
         des_pos = np.array(
-            [0.3, 0.9, -1.57, -0.3, 0.9, -1.57, 0.5, 0.3, 0.9, -1.57, -0.3, 0.9, -1.57])
+            [0.0, 0, -1.57, 0, 0, -1.57, 0.3, 0.9, -1.57, -0.3, 0.9, -1.57])
         start = self.get_clock().now()
         joint_state = JointState()
         while self.connector.is_rinning():
@@ -154,7 +160,7 @@ class ConnectorNode(Node):
             else:
                 elapsed = (self.get_clock().now() - start).nanoseconds / 1e9
 
-            torques = 25 * (des_pos*0.5*(1-math.cos(5*elapsed)) - position) + \
+            torques = 5 * (des_pos*0.5*(1-math.cos(5*elapsed)) - position) + \
                 0.00725 * (des_pos*0.5*math.sin(5*elapsed) - velocity)
             self.connector.set_torques(torques)
             if self.connector.step():
