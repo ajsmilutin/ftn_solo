@@ -286,6 +286,8 @@ class ConnectorNode(Node):
         if hardware.lower() != "robot":
             self.time_publisher = self.create_publisher(Clock, "/clock", 10)
         self.clock = Clock()
+        log_file = open("ident_log.csv", "w")
+        self.log_file = csv.writer(log_file)
         self.declare_parameter('use_gui', True)
         self.declare_parameter('start_paused', False)
         self.declare_parameter('fixed', False)
