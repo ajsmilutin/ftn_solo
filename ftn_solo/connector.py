@@ -8,8 +8,9 @@ from sensor_msgs.msg import JointState
 import numpy as np
 from rosgraph_msgs.msg import Clock
 import time
-import math
+import csv
 from robot_properties_solo.robot_resources import Resources
+from ftn_solo.controllers.controller_ident import ControllerIdent
 
 
 def RPY2Quat(rpy):
@@ -37,6 +38,7 @@ class RobotConnector(Connector):
         self.robot = oci.robot_from_yaml_file(self.resources.config_path)
         self.robot.initialize(np.array([0]*self.robot.joints.number_motors))
         self.running = True
+        self.controller = ControllerIdent()
 
     def get_data(self):
         self.robot.parse_sensor_data()
@@ -73,6 +75,8 @@ class MujocoConnector(Connector):
         self.viewer = None
         self.running = True
         self.ns = int(self.model.opt.timestep*1e9)
+        self.controller = ControllerIdent()
+        self.controller.dT = self.model.opt.timestep
 
         if self.use_gui:
             self.viewer = mujoco.viewer.launch_passive(
@@ -117,6 +121,8 @@ class ConnectorNode(Node):
         if sim:
             self.time_publisher = self.create_publisher(Clock, "/clock", 10)
         self.clock = Clock()
+        log_file = open("ident_log.csv", "w")
+        self.log_file = csv.writer(log_file)
         self.declare_parameter('use_gui', True)
         self.declare_parameter('start_paused', False)
         self.declare_parameter('fixed', False)
@@ -141,10 +147,20 @@ class ConnectorNode(Node):
         else:
             self.connector = RobotConnector(robot_version,  self.get_logger())
 
+    def log_data(self, t, torques, position, velocity):
+        #text = str(t) + str(torques) + str(position) + str(velocity) + "\n"
+        #text = text.replace("[", " ").replace("]", "")      
+        row = [None] * 19
+        row[0] = t
+        row[1:6] = torques.tolist()
+        row[7:12] = position.tolist()
+        row[13:18] = velocity.tolist()
+        self.log_file.writerow(row)
+    
     def run(self):
         c = 0
         des_pos = np.array(
-            [0.3, 0.9, -1.57, -0.3, 0.9, -1.57, 0.5, 0.3, 0.9, -1.57, -0.3, 0.9, -1.57])
+            [0.3, 0.9, -1.57, -0.3, 0.9, -1.57])
         start = self.get_clock().now()
         joint_state = JointState()
         while self.connector.is_rinning():
@@ -154,9 +170,9 @@ class ConnectorNode(Node):
             else:
                 elapsed = (self.get_clock().now() - start).nanoseconds / 1e9
 
-            torques = 25 * (des_pos*0.5*(1-math.cos(5*elapsed)) - position) + \
-                0.00725 * (des_pos*0.5*math.sin(5*elapsed) - velocity)
+            torques = self.connector.controller.compute_control(elapsed, position, velocity)
             self.connector.set_torques(torques)
+            self.log_data(elapsed, torques, position, velocity)
             if self.connector.step():
                 if self.time_publisher:
                     self.clock.clock.nanosec += self.connector.ns
