@@ -66,6 +66,7 @@ class MujocoConnector(Connector):
         self.data.qpos[3:7] = RPY2Quat(rpy)
         logger.error(str(self.data.qpos))
         self.data.qpos[7:] = 0
+        self.data.qvel[:] = 0
         if fixed:
             self.model.body("base_link").jntnum = 0
         self.joint_names = [self.model.joint(
@@ -148,13 +149,19 @@ class ConnectorNode(Node):
             self.connector = RobotConnector(robot_version,  self.get_logger())
 
     def log_data(self, t, torques, position, velocity):
-        #text = str(t) + str(torques) + str(position) + str(velocity) + "\n"
-        #text = text.replace("[", " ").replace("]", "")      
-        row = [None] * 19
-        row[0] = t
-        row[1:6] = torques.tolist()
-        row[7:12] = position.tolist()
-        row[13:18] = velocity.tolist()
+        row = [0.0] * 20
+        if self.connector.controller.machine.is_state('move_knee', self.connector.controller):
+            row[0] = 1.0
+        elif self.connector.controller.machine.is_state('move_hip', self.connector.controller):
+            row[0] = 2.0
+        elif self.connector.controller.machine.is_state('rotate_hip', self.connector.controller):
+            row[0] = 3.0
+        else:
+            return
+        row[1] = t
+        row[2:7] = torques.tolist()
+        row[8:13] = position.tolist()
+        row[14:19] = velocity.tolist()
         self.log_file.writerow(row)
     
     def run(self):
