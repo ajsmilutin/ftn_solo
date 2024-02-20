@@ -344,7 +344,7 @@ rom pinocchio.utils import zero
             + self.base_imu_accel_thermal
         )
 
-    def get_state(self):
+    def get_data(self):
         """Returns a pinocchio-like representation of the q, dq matrices. Note that the base velocities are expressed in the base frame.
 
         Returns:
@@ -395,7 +395,7 @@ rom pinocchio.utils import zero
                 q[self.pinocchio_joint_ids[i] - 1] = joint_states[i][0]
                 dq[self.pinocchio_joint_ids[i] - 1] = joint_states[i][1]
 
-        return q, dq, joint_states
+        return q, dq
 
     def get_imu_frame_position_velocity(self):
         """Returns the position and velocity of IMU frame. Note that the velocity is expressed in the IMU frame.
