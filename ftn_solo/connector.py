@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import sys
+from tracemalloc import start
 import mujoco
 import mujoco.viewer
 import rclpy
@@ -38,7 +39,7 @@ class RobotConnector(Connector):
         self.robot = oci.robot_from_yaml_file(self.resources.config_path)
         self.robot.initialize(np.array([0]*self.robot.joints.number_motors))
         self.running = True
-        self.controller = ControllerIdent()
+        self.controller = ControllerIdent(self.robot.joints.number_motors)
 
     def get_data(self):
         self.robot.parse_sensor_data()
@@ -76,7 +77,7 @@ class MujocoConnector(Connector):
         self.viewer = None
         self.running = True
         self.ns = int(self.model.opt.timestep*1e9)
-        self.controller = ControllerIdent()
+        self.controller = ControllerIdent(self.model.nu)
         self.controller.dT = self.model.opt.timestep
 
         if self.use_gui:
@@ -149,7 +150,7 @@ class ConnectorNode(Node):
             self.connector = RobotConnector(robot_version,  self.get_logger())
 
     def log_data(self, t, torques, position, velocity):
-        row = [0.0] * 20
+        row = [0.0] * (2 + 3 * self.connector.controller.joints_num)
         if self.connector.controller.machine.is_state('move_knee', self.connector.controller):
             row[0] = 1.0
         elif self.connector.controller.machine.is_state('move_hip', self.connector.controller):
@@ -159,15 +160,19 @@ class ConnectorNode(Node):
         else:
             return
         row[1] = t
-        row[2:7] = torques.tolist()
-        row[8:13] = position.tolist()
-        row[14:19] = velocity.tolist()
+        start_index = 2
+        end_index = self.connector.controller.joints_num + start_index
+        row[start_index:end_index] = torques.tolist()
+        start_index = end_index
+        end_index += self.connector.controller.joints_num
+        row[start_index:end_index] = position.tolist()
+        start_index = end_index
+        end_index += self.connector.controller.joints_num
+        row[start_index:end_index] = velocity.tolist()
         self.log_file.writerow(row)
     
     def run(self):
         c = 0
-        des_pos = np.array(
-            [0.3, 0.9, -1.57, -0.3, 0.9, -1.57])
         start = self.get_clock().now()
         joint_state = JointState()
         while self.connector.is_rinning():
