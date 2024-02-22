@@ -17,7 +17,7 @@ class ControllerIdent():
     hip_torque = 0.032
     hip_rot_torque = 0.018
     
-    def __init__(self) -> None:
+    def __init__(self, num_of_joints) -> None:
         self.machine = Machine(model = self, states = ControllerIdent.states, initial = 'start')
         self.machine.add_transition('tick', 'start', 'move_knee', conditions = 'prepare_start')
         self.machine.add_transition('tick', 'move_knee', 'position_calf', conditions = 'move_joint')
@@ -34,8 +34,10 @@ class ControllerIdent():
         self.machine.on_enter_position_thigh(self.calculate_trajectory)
         self.machine.on_enter_return_to_start(self.calculate_return_trajectory)
         
-        self.control = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], dtype=np.float64)
-        self.ref_position = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], dtype=np.float64)
+        self.joints_num = num_of_joints
+        
+        self.control = np.array([0.0] * self.joints_num, dtype=np.float64)
+        self.ref_position = np.array([0.0] * self.joints_num, dtype=np.float64)
         self.transition_start = 0.0
         self.transition_end = 1.0
         self.dT = 0.001
@@ -78,37 +80,59 @@ class ControllerIdent():
         except:
             self.log.write("Index out of range \n")
         self.control = self.Kp * (self.ref_position - q) + self.Kd * (-qv)
-        self.control[index] = control
-        self.control[index + 3] = control
+        while (index < self.joints_num):
+            self.control[index] = control
+            index += 3
+            if (self.joints_num == 13) and (index >=6 and index<= 8):
+                index +=1
         self.control = np.clip(self.control, -self.max_control, self.max_control)
         return t >= self.transition_end
     
     def prepare_calf(self, t, q, qv):
-        self.ref_position[2] = self.trajectory(t)[0]
-        self.ref_position[5] = self.trajectory(t)[1]
+        index = 2
+        i = 0
+        while (index < self.joints_num):
+            self.ref_position[index] = self.trajectory(t)[i]
+            i += 1
+            index += 3
+            if (self.joints_num == 13) and (index >=6 and index <= 8):
+                index += 1
         self.control = self.Kp * (self.ref_position - q) + self.Kd * (-qv)
         self.control = np.clip(self.control, -self.max_control, self.max_control)
         return t >= self.transition_end
     
     def prepare_thigh(self, t, q, qv):
-        self.ref_position[1] = self.trajectory(t)[0]
-        self.ref_position[4] = self.trajectory(t)[1]
+        index = 1
+        i = 0
+        while (index < self.joints_num):
+            self.ref_position[index] = self.trajectory(t)[i]
+            i += 1
+            index += 3
+            if (self.joints_num == 13) and (index >=6 and index <= 8):
+                index += 1
         self.control = self.Kp * (self.ref_position - q) + self.Kd * (-qv)
         self.control = np.clip(self.control, -self.max_control, self.max_control)
         return t >= self.transition_end
     
     def calculate_trajectory(self, t, q, qv):
-        start_position = -1
         end_position = -1
-        q_points = np.ndarray((2, 2), dtype=np.float64)
+        i = 0
+        index = -1
+        columns_num = self.joints_num // 3
+        q_points = np.ndarray((2, columns_num), dtype=np.float64)
         if self.machine.is_state('position_calf', self):
             end_position = 2.8
-            q_points[:, 0] = [q[2], end_position] 
-            q_points[:, 1] = [q[5], end_position] 
+            index = 2
         elif self.machine.is_state('position_thigh', self):
             end_position = 1.45
-            q_points[:, 0] = [q[1], end_position] 
-            q_points[:, 1] = [q[4], end_position] 
+            index = 1
+        while (index < self.joints_num):
+            q_points[:, i] = [q[index], end_position]
+            i += 1
+            index += 3
+            if (self.joints_num == 13) and (index >=6 and index <= 8):
+                index += 1
+                
         self.transition_start = t
         self.transition_end = t + self.prepare_duration
         t_points = np.array([t, self.transition_end], dtype=np.float64)
@@ -118,8 +142,8 @@ class ControllerIdent():
         self.transition_start = t
         self.transition_end = t + 1.0
         t_points = np.array([t, self.transition_end], dtype=np.float64)
-        q_points = np.ndarray((2, 6), dtype=np.float64)
-        for i in range(6):
+        q_points = np.ndarray((2, self.joints_num), dtype=np.float64)
+        for i in range(self.joints_num):
             q_points[:, i] = [q[i], 0]
         self.trajectory = CubicSpline(t_points, q_points)
     
