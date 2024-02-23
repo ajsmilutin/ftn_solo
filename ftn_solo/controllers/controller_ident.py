@@ -38,6 +38,9 @@ class ControllerIdent():
         
         self.control = np.array([0.0] * self.joints_num, dtype=np.float64)
         self.ref_position = np.array([0.0] * self.joints_num, dtype=np.float64)
+        self.ref_velocity = np.array([0.0] * self.joints_num, dtype=np.float64)
+        self.B = np.array([2.26965697e-02, 2.41265809e-02, 2.77812945e-02] * (self.joints_num // 3), dtype=np.float64)
+        self.Fv = np.array([7.61971775e-02, 7.50217858e-02, 1.00054752e-01] * (self.joints_num // 3), dtype=np.float64)
         self.transition_start = 0.0
         self.transition_end = 1.0
         self.dT = 0.001
@@ -93,11 +96,12 @@ class ControllerIdent():
         i = 0
         while (index < self.joints_num):
             self.ref_position[index] = self.trajectory(t)[i]
+            self.ref_velocity[index] = self.trajectory(t, 1)[i]
             i += 1
             index += 3
             if (self.joints_num == 13) and (index >=6 and index <= 8):
                 index += 1
-        self.control = self.Kp * (self.ref_position - q) + self.Kd * (-qv)
+        self.control = self.Kp * (self.ref_position - q) + self.Kd * (-qv) + self.B * self.ref_velocity + self.Fv * np.sign(self.ref_velocity)
         self.control = np.clip(self.control, -self.max_control, self.max_control)
         return t >= self.transition_end
     
@@ -106,15 +110,17 @@ class ControllerIdent():
         i = 0
         while (index < self.joints_num):
             self.ref_position[index] = self.trajectory(t)[i]
+            self.ref_velocity[index] = self.trajectory(t, 1)[i]
             i += 1
             index += 3
             if (self.joints_num == 13) and (index >=6 and index <= 8):
                 index += 1
-        self.control = self.Kp * (self.ref_position - q) + self.Kd * (-qv)
+        self.control = self.Kp * (self.ref_position - q) + self.Kd * (-qv) + self.B * self.ref_velocity + self.Fv * np.sign(self.ref_velocity)
         self.control = np.clip(self.control, -self.max_control, self.max_control)
         return t >= self.transition_end
     
     def calculate_trajectory(self, t, q, qv):
+        self.ref_velocity = np.array([0.0] * self.joints_num, dtype=np.float64)
         end_position = -1
         i = 0
         index = -1
@@ -149,7 +155,8 @@ class ControllerIdent():
     
     def go_to_start(self, t, q, qv):
         self.ref_position = self.trajectory(t)
-        self.control = self.Kp * (self.ref_position - q) + self.Kd * (-qv)
+        self.ref_velocity = self.trajectory(t, 1)
+        self.control = self.Kp * (self.ref_position - q) + self.Kd * (-qv) + self.B * self.ref_velocity + self.Fv * np.sign(self.ref_velocity)
         self.control = np.clip(self.control, -self.max_control, self.max_control)
         return t >= self.transition_end
     
