@@ -4,8 +4,7 @@ import mujoco
 import mujoco.viewer
 import pybullet
 import rclpy
-import pinocchio
-from numpy.random import default_rng
+from .utils.bullet_env import BulletEnvWithGround
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
 import numpy as np
@@ -14,7 +13,7 @@ import time
 import math
 import yaml
 from robot_properties_solo.robot_resources import Resources
-from pinocchio.utils import zero
+
 
 def RPY2Quat(rpy):
     q1 = np.ndarray((4,), dtype=np.float64)
@@ -27,6 +26,7 @@ def RPY2Quat(rpy):
     mujoco.mju_mulQuat(q1, q3, q2)
     return q1
 
+
 class Connector():
     def __init__(self, robot_version, logger, *args, **kwargs) -> None:
         self.resources = Resources(robot_version)
@@ -34,7 +34,7 @@ class Connector():
 
 
 class RobotConnector(Connector):
-    def __init__(self, robot_version, logger, *args, **kwargs) -> None:
+    def __init__(self, robot_version, logger, *args, simulator) -> None:
         super().__init__(robot_version, logger, *args, **kwargs)
         import libodri_control_interface_pywrap as oci
         self.running = True
@@ -61,93 +61,77 @@ class RobotConnector(Connector):
         self.robot.send_command_and_wait_end_of_cycle(0.001)
         return True
 
+
 class PybulletConnector(Connector):
 
-    def __init__(self,robot_version, logger, useFixedBase=False,pos=[0, 0, 0.4],rpy=[0.0, 0.0, 0.0]) -> None:
+    def __init__(self, robot_version, logger, fixed=False, pos=[0, 0, 0.4], rpy=[0.0, 0.0, 0.0]) -> None:
         super().__init__(robot_version, logger)
 
-        orn=pybullet.getQuaternionFromEuler(rpy)
-        
+        self.env = BulletEnvWithGround(robot_version)
+        orn = pybullet.getQuaternionFromEuler(rpy)
+        self.ns = 1000000
+        self.logger = logger
         self.urdf_path = self.resources.urdf_path
         self.robotId = pybullet.loadURDF(
             self.urdf_path,
             pos,
             orn,
             flags=pybullet.URDF_USE_INERTIA_FROM_FILE,
-            useFixedBase=useFixedBase,
+            useFixedBase=fixed,
         )
-            
 
-        self.useFixedBase = useFixedBase
-        self.end_effector_names=[]
-        self.pinocchio_endeff_ids = []
-        controlled_joints = []
-
-        for leg in ["FL", "FR", "HL", "HR"]:
-            controlled_joints += [leg + "_HAA", leg + "_HFE", leg + "_KFE"]
-            self.end_effector_names.append(leg + "_ANKLE")
-        
+        self.env.add_robot(self.robotId)
+        self.fixed = fixed
         self.joint_names = []
         self.joint_ids = []
         self.num_joints = []
+        self.running = True
         for ji in range(pybullet.getNumJoints(self.robotId)):
-            self.joint_names.append(pybullet.getJointInfo(self.robotId, ji)[1].decode("UTF-8"))
+            self.joint_names.append(pybullet.getJointInfo(
+                self.robotId, ji)[1].decode("UTF-8"))
             self.joint_ids.append(pybullet.getJointInfo(self.robotId, ji)[0])
-   
-        self.num_joints = self.joint_ids[0:11]
-            
+
+        if robot_version == 'solo12':
+            self.num_joints = self.joint_ids[0:11]
+        elif robot_version == 'solo6':
+            self.num_joints = self.joint_ids[0:5]
+
     def get_data(self):
 
-        q = []
-        dq = []
+        q = np.empty(12)
+        dq = np.empty(12)
 
-        if not self.useFixedBase:
-            (
-                base_inertia_pos,
-                base_inertia_quat,
-            ) = pybullet.getBasePositionAndOrientation(self.robotId)
-           
-            base_stat = pybullet.getDynamicsInfo(self.robotId, -1)
-            base_inertia_link_pos, base_inertia_link_quat = pybullet.invertTransform(
-                base_stat[3], base_stat[4]
-            )
-            pos, orn = pybullet.multiplyTransforms(
-                base_inertia_pos,
-                base_inertia_quat,
-                base_inertia_link_pos,
-                base_inertia_link_quat,
-            )
-            q[:3] = pos
-            q[3:7] = orn
+        joint_states = pybullet.getJointStates(self.robotId, self.num_joints)
 
-            vel, orn = pybullet.getBaseVelocity(self.robotId)
-            dq[:3] = vel
-            dq[3:6] = orn
-
-           
-            rot = np.array(pybullet.getMatrixFromQuaternion(q[3:7])).reshape((3, 3))
-            dq[0:3] = rot.T.dot(dq[0:3])
-            dq[3:6] = rot.T.dot(dq[3:6])
+        for i in range(len(self.num_joints)):
+            q[i] = joint_states[i][0]
+            dq[i] = joint_states[i][1]
 
         return q, dq
-  
+
+    def key_callback(self, keycode):
+        if chr(keycode) == ' ':
+            self.paused = not self.paused
+        elif keycode == 256:  # ESC
+            self.running = False
+
     def set_torques(self, tau):
-        
+
         pybullet.setJointMotorControlArray(
             self.robotId,
-            self.joint_ids,
+            self.num_joints,
             pybullet.TORQUE_CONTROL,
-            forces=tau[self.num_joints],
+            forces=tau[self.num_joints]
         )
-    
+
     def step(self):
         pybullet.stepSimulation()
         return True
-    
+
     def is_rinning(self):
         return self.running
 
-        
+
 class MujocoConnector(Connector):
     def __init__(self, robot_version, logger, use_gui=True, start_paused=False, fixed=False, pos=[0, 0, 0.4], rpy=[0.0, 0.0, 0.0]) -> None:
         super().__init__(robot_version, logger)
@@ -168,7 +152,7 @@ class MujocoConnector(Connector):
         self.viewer = None
         self.running = True
         self.ns = int(self.model.opt.timestep*1e9)
-
+        logger.error(str(self.ns))
         if self.use_gui:
             self.viewer = mujoco.viewer.launch_passive(
                 self.model, self.data, show_right_ui=False, key_callback=self.key_callback)
@@ -206,7 +190,7 @@ class MujocoConnector(Connector):
 class ConnectorNode(Node):
     def __init__(self):
         super().__init__("first_node")
-        self.declare_parameter('sim',rclpy.Parameter.Type.STRING)
+        self.declare_parameter('sim', rclpy.Parameter.Type.STRING)
         sim = self.get_parameter('sim').get_parameter_value().string_value
         self.time_publisher = None
         if sim:
@@ -229,13 +213,16 @@ class ConnectorNode(Node):
                 'start_paused').get_parameter_value().bool_value
             fixed = self.get_parameter(
                 'fixed').get_parameter_value().bool_value
-            pos = self.get_parameter('pos').get_parameter_value().double_array_value
-            rpy = self.get_parameter('rpy').get_parameter_value().double_array_value
-            if sim=='mujoco':
+            pos = self.get_parameter(
+                'pos').get_parameter_value().double_array_value
+            rpy = self.get_parameter(
+                'rpy').get_parameter_value().double_array_value
+            if sim == 'mujoco':
                 self.connector = MujocoConnector(robot_version, self.get_logger(),
-                                             use_gui=use_gui, start_paused=start_paused, fixed=fixed, pos=pos, rpy=rpy)
-            elif sim=='pybullet':
-                self.connector = PybulletConnector(robot_version, self.get_logger(), fixed=fixed, pos=pos, rpy=rpy)
+                                                 use_gui=use_gui, start_paused=start_paused, fixed=fixed, pos=pos, rpy=rpy)
+            elif sim == 'pybullet':
+                self.connector = PybulletConnector(
+                    robot_version, self.get_logger(), fixed=fixed, pos=pos, rpy=rpy)
         else:
             self.connector = RobotConnector(robot_version,  self.get_logger())
 
@@ -254,7 +241,10 @@ class ConnectorNode(Node):
 
             torques = 5 * (des_pos*0.5*(1-math.cos(5*elapsed)) - position) + \
                 0.00725 * (des_pos*0.5*math.sin(5*elapsed) - velocity)
-            self.connector.set_torques(torques)
+
+            # array_str=np.array2string(des_pos)
+            # self.get_logger().info(array_str)
+            self.connector.set_torques(des_pos)
             if self.connector.step():
                 if self.time_publisher:
                     self.clock.clock.nanosec += self.connector.ns
