@@ -5,3 +5,4 @@ transitions
 ahrs
 xacro
 pyyaml
+pybullet
