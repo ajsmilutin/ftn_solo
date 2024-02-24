@@ -242,9 +242,7 @@ class ConnectorNode(Node):
             torques = 5 * (des_pos*0.5*(1-math.cos(5*elapsed)) - position) + \
                 0.00725 * (des_pos*0.5*math.sin(5*elapsed) - velocity)
 
-            # array_str=np.array2string(des_pos)
-            # self.get_logger().info(array_str)
-            self.connector.set_torques(des_pos)
+            self.connector.set_torques(torques)
             if self.connector.step():
                 if self.time_publisher:
                     self.clock.clock.nanosec += self.connector.ns
