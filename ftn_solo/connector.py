@@ -54,7 +54,7 @@ class RobotConnector(Connector):
     def set_torques(self, torques):
         self.robot.joints.set_torques(torques)
 
-    def is_rinning(self):
+    def is_running(self):
         return self.running
 
     def step(self):
@@ -63,33 +63,31 @@ class RobotConnector(Connector):
 
 
 class PybulletConnector(Connector):
-
     def __init__(self, robot_version, logger, fixed=False, pos=[0, 0, 0.4], rpy=[0.0, 0.0, 0.0]) -> None:
         super().__init__(robot_version, logger)
 
         self.env = BulletEnvWithGround(robot_version)
         orn = pybullet.getQuaternionFromEuler(rpy)
-        self.ns = 1000000
+        self.nanoseconds = 1000000
         self.logger = logger
-        self.urdf_path = self.resources.urdf_path
-        self.robotId = pybullet.loadURDF(
-            self.urdf_path,
+        self.robot_id = pybullet.loadURDF(
+            self.resources.urdf_path,
             pos,
             orn,
             flags=pybullet.URDF_USE_INERTIA_FROM_FILE,
             useFixedBase=fixed,
         )
 
-        self.env.add_robot(self.robotId)
+        self.env.add_robot(self.robot_id)
         self.fixed = fixed
         self.joint_names = []
         self.joint_ids = []
         self.num_joints = []
         self.running = True
-        for ji in range(pybullet.getNumJoints(self.robotId)):
+        for ji in range(pybullet.getNumJoints(self.robot_id)):
             self.joint_names.append(pybullet.getJointInfo(
-                self.robotId, ji)[1].decode("UTF-8"))
-            self.joint_ids.append(pybullet.getJointInfo(self.robotId, ji)[0])
+                self.robot_id, ji)[1].decode("UTF-8"))
+            self.joint_ids.append(pybullet.getJointInfo(self.robot_id, ji)[0])
 
         if robot_version == 'solo12':
             self.num_joints = self.joint_ids[0:11]
@@ -101,7 +99,7 @@ class PybulletConnector(Connector):
         q = np.empty(12)
         dq = np.empty(12)
 
-        joint_states = pybullet.getJointStates(self.robotId, self.num_joints)
+        joint_states = pybullet.getJointStates(self.robot_id, self.num_joints)
 
         for i in range(len(self.num_joints)):
             q[i] = joint_states[i][0]
@@ -118,17 +116,17 @@ class PybulletConnector(Connector):
     def set_torques(self, tau):
 
         pybullet.setJointMotorControlArray(
-            self.robotId,
+            self.robot_id,
             self.num_joints,
             pybullet.TORQUE_CONTROL,
             forces=tau[self.num_joints]
         )
 
     def step(self):
-        pybullet.stepSimulation()
+        self.env.step()
         return True
 
-    def is_rinning(self):
+    def is_running(self):
         return self.running
 
 
@@ -151,8 +149,8 @@ class MujocoConnector(Connector):
         self.use_gui = use_gui
         self.viewer = None
         self.running = True
-        self.ns = int(self.model.opt.timestep*1e9)
-        logger.error(str(self.ns))
+        self.nanoseconds = int(self.model.opt.timestep*1e9)
+        logger.error(str(self.nanoseconds))
         if self.use_gui:
             self.viewer = mujoco.viewer.launch_passive(
                 self.model, self.data, show_right_ui=False, key_callback=self.key_callback)
@@ -169,7 +167,7 @@ class MujocoConnector(Connector):
     def set_torques(self, torques):
         self.data.ctrl = torques
 
-    def is_rinning(self):
+    def is_running(self):
         return self.running
 
     def step(self):
@@ -232,7 +230,7 @@ class ConnectorNode(Node):
             [0.0, 0, -1.57, 0, 0, -1.57, 0.3, 0.9, -1.57, -0.3, 0.9, -1.57])
         start = self.get_clock().now()
         joint_state = JointState()
-        while self.connector.is_rinning():
+        while self.connector.is_running():
             position, velocity = self.connector.get_data()
             if self.time_publisher:
                 elapsed = self.clock.clock.sec + self.clock.clock.nanosec / 1e9
@@ -245,7 +243,7 @@ class ConnectorNode(Node):
             self.connector.set_torques(torques)
             if self.connector.step():
                 if self.time_publisher:
-                    self.clock.clock.nanosec += self.connector.ns
+                    self.clock.clock.nanosec += self.connector.nanoseconds
                     self.clock.clock.sec += self.clock.clock.nanosec // 1000000000
                     self.clock.clock.nanosec = self.clock.clock.nanosec % 1000000000
                     self.time_publisher.publish(self.clock)
