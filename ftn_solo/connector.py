@@ -107,6 +107,15 @@ class PybulletConnector(SimulationConnector):
             flags=pybullet.URDF_USE_INERTIA_FROM_FILE,
             useFixedBase=fixed,
         )
+        if controller == 'ident':
+            self.controller = ControllerIdent(self.model.nu)
+        elif controller == 'test_comp':
+            self.controller = ControllerTest(self.model.nu, True)
+        elif controller == 'test_no_comp':
+            self.controller = ControllerTest(self.model.nu, False)
+        else:
+            self.logger.error('Unknown controller selected!!! Switching to Ident controller!')
+            self.controller = ControllerIdent(self.model.nu)
 
         self.joint_names = []
         self.joint_ids = []
@@ -316,13 +325,13 @@ class ConnectorNode(Node):
             rpy = self.get_parameter(
                 'rpy').get_parameter_value().double_array_value
             if hardware.lower() == 'mujoco':
-                self.connector = MujocoConnector(robot_version, self.get_logger(),
+                self.connector = MujocoConnector(robot_version, self.get_logger(),controller=controller,
                                                  use_gui=use_gui, start_paused=start_paused, fixed=fixed, pos=pos, rpy=rpy)
             elif hardware.lower() == 'pybullet':
                 self.connector = PybulletConnector(
-                    robot_version, self.get_logger(), fixed=fixed, pos=pos, rpy=rpy)
+                    robot_version, self.get_logger(),controller=controller, fixed=fixed, pos=pos, rpy=rpy)
         else:
-            self.connector = RobotConnector(robot_version,  self.get_logger())
+            self.connector = RobotConnector(robot_version,  self.get_logger(), controller=controller)
 
         if task == 'joint_spline':
             self.task = TaskJointSpline(self.connector.num_joints(),
