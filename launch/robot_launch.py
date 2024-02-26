@@ -14,6 +14,7 @@ def launch_setup(context, *args, **kwargs):
     start_paused = LaunchConfiguration('start_paused', default='False')
     pos = LaunchConfiguration('pos', default='[0.0, 0.0, 0.4]')
     rpy = LaunchConfiguration('rpy', default='[0.0, 0.0, 0.0]')
+    controller = LaunchConfiguration('controller', default='ident')
     robot_version_value = robot_version.perform(context)
     resources = Resources(robot_version_value)
     with open(resources.urdf_path, 'r') as infp:
@@ -40,7 +41,8 @@ def launch_setup(context, *args, **kwargs):
                          'fixed': fixed,
                          'start_paused': start_paused,
                          'pos': pos,
-                         'rpy': rpy}]
+                         'rpy': rpy,
+                         'controller': controller}]
     )]
 
 
