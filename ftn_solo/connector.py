@@ -169,14 +169,17 @@ class ConnectorNode(Node):
             self.connector = RobotConnector(robot_version,  self.get_logger(), controller=controller)
 
     def log_data(self, t, torques, position, velocity):
+        controller = self.get_parameter('controller').get_parameter_value().string_value
         row = [0.0] * (2 + 3 * self.connector.controller.joints_num)
-        if self.connector.controller.machine.is_state('move_knee', self.connector.controller):
-            row[0] = 1.0
-        elif self.connector.controller.machine.is_state('move_hip', self.connector.controller):
-            row[0] = 2.0
-        elif self.connector.controller.machine.is_state('rotate_hip', self.connector.controller):
-            row[0] = 3.0
+        if controller == 'ident':
+            states = ['move_knee', 'move_hip', 'rotate_hip']
         else:
+            states = ['first_test', 'second_test', 'third_test']
+        row[0] = 0.0
+        for i in range(3):
+            if self.connector.controller.machine.is_state(states[i], self.connector.controller):
+                row[0] = float(i+1)
+        if row[0] == 0.0:
             return
         row[1] = t
         start_index = 2

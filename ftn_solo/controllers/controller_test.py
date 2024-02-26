@@ -89,11 +89,11 @@ class ControllerTest():
         index = -1
         position = 0.0
         velocity = 0.0
-        if self.machine.is_state('move_knee', self):
+        if self.machine.is_state('first_test', self):
             index = 2
-        elif self.machine.is_state('move_hip', self):
+        elif self.machine.is_state('second_test', self):
             index = 1
-        elif self.machine.is_state('rotate_hip', self):
+        elif self.machine.is_state('third_test', self):
             index = 0
         position = np.sin(self.SIN_W * (t - self.transition_start)) * self.joint_sin_pos[index]
         velocity = np.cos(self.SIN_W * (t - self.transition_start)) * self.joint_sin_pos[index]
@@ -142,10 +142,10 @@ class ControllerTest():
         index = -1
         columns_num = self.joints_num // 3
         q_points = np.ndarray((2, columns_num), dtype=np.float64)
-        if self.machine.is_state('position_calf', self):
+        if self.machine.is_state('return_to_start_1', self):
             end_position = 0
             index = 2
-        elif self.machine.is_state('position_thigh', self):
+        elif self.machine.is_state('return_to_start_2', self):
             end_position = 0
             index = 1
         while (index < self.joints_num):
