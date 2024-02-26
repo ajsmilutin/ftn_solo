@@ -90,14 +90,14 @@ class PybulletConnector(Connector):
             self.joint_ids.append(pybullet.getJointInfo(self.robot_id, ji)[0])
 
         if robot_version == 'solo12':
-            self.num_joints = self.joint_ids[0:11]
+            self.num_joints = self.joint_ids[0:12]
         elif robot_version == 'solo6':
-            self.num_joints = self.joint_ids[0:5]
+            self.num_joints = self.joint_ids[0:6]
 
     def get_data(self):
 
-        q = np.empty(12)
-        dq = np.empty(12)
+        q = np.empty(len(self.num_joints))
+        dq = np.empty(len(self.num_joints))
 
         joint_states = pybullet.getJointStates(self.robot_id, self.num_joints)
 
@@ -106,12 +106,6 @@ class PybulletConnector(Connector):
             dq[i] = joint_states[i][1]
 
         return q, dq
-
-    def key_callback(self, keycode):
-        if chr(keycode) == ' ':
-            self.paused = not self.paused
-        elif keycode == 256:  # ESC
-            self.running = False
 
     def set_torques(self, tau):
 
