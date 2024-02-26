@@ -3,49 +3,47 @@ from transitions import Machine
 from scipy.signal import chirp
 from scipy.interpolate import CubicSpline
 
-class ControllerIdent():
-    states = ['start', 'move_knee', 'position_calf', 'move_hip', 'position_thigh','rotate_hip', 'return_to_start', 'idle']
-    chirp_duration = 5.0
-    chirp_F0 = 0.4
-    chirp_F1 = 0.8
+class ControllerTest():
+    states = ['start', 'first_test', 'return_to_start_1', 'second_test', 'return_to_start_2','third_test', 'return_to_start_3', 'idle']
+    move_duration = 5.0
+    SIN_W = 2 * 3.14 * 0.5 # f = 0.5Hz
     prepare_duration = 1.0
     Kp = 25.0 
     Kd = 0.00725 
     max_control = 1.8 # 0.025*8*9
-    knee_torque = 0.25
-    hip_torque = 0.25
-    hip_rot_torque = 0.25
+    joint_sin_pos = np.array([0.5, 1.0, 1.57], dtype=np.float64)
     
-    def __init__(self, num_of_joints) -> None:
-        self.machine = Machine(model = self, states = ControllerIdent.states, initial = 'start')
-        self.machine.add_transition('tick', 'start', 'move_knee', conditions = 'prepare_start')
-        self.machine.add_transition('tick', 'move_knee', 'position_calf', conditions = 'move_joint')
-        self.machine.add_transition('tick', 'position_calf', 'move_hip', conditions = 'prepare_calf')
-        self.machine.add_transition('tick', 'move_hip', 'position_thigh', conditions = 'move_joint')
-        self.machine.add_transition('tick', 'position_thigh', 'rotate_hip', conditions='prepare_thigh')
-        self.machine.add_transition('tick', 'rotate_hip', 'return_to_start', conditions = 'move_joint')
-        self.machine.add_transition('tick', 'return_to_start', 'idle', conditions = 'go_to_start')
+    def __init__(self, num_of_joints, compensation) -> None:
+        self.machine = Machine(model = self, states = ControllerTest.states, initial = 'start')
+        self.machine.add_transition('tick', 'start', 'first_test', conditions = 'prepare_start')
+        self.machine.add_transition('tick', 'first_test', 'return_to_start_1', conditions = 'move_all_joints')
+        self.machine.add_transition('tick', 'return_to_start_1', 'second_test', conditions = 'go_to_start')
+        self.machine.add_transition('tick', 'second_test', 'return_to_start_2', conditions = 'move_all_joints')
+        self.machine.add_transition('tick', 'return_to_start_2', 'third_test', conditions='go_to_start')
+        self.machine.add_transition('tick', 'third_test', 'return_to_start_3', conditions = 'move_all_joints')
+        self.machine.add_transition('tick', 'return_to_start_3', 'idle', conditions = 'go_to_start')
         self.machine.add_transition('tick', 'idle', 'idle', conditions='do_nothing')
-        self.machine.on_enter_move_knee(self.prepare_move)
-        self.machine.on_enter_move_hip(self.prepare_move)
-        self.machine.on_enter_rotate_hip(self.prepare_move)
-        self.machine.on_enter_position_calf(self.calculate_trajectory)
-        self.machine.on_enter_position_thigh(self.calculate_trajectory)
-        self.machine.on_enter_return_to_start(self.calculate_return_trajectory)
+        self.machine.on_enter_first_test(self.prepare_move)
+        self.machine.on_enter_second_test(self.prepare_move)
+        self.machine.on_enter_third_test(self.prepare_move)
+        self.machine.on_enter_return_to_start_1(self.calculate_return_trajectory)
+        self.machine.on_enter_return_to_start_2(self.calculate_return_trajectory)
+        self.machine.on_enter_return_to_start_3(self.calculate_return_trajectory)
         
         self.joints_num = num_of_joints
         
         self.control = np.array([0.0] * self.joints_num, dtype=np.float64)
         self.ref_position = np.array([0.0] * self.joints_num, dtype=np.float64)
         self.ref_velocity = np.array([0.0] * self.joints_num, dtype=np.float64)
-        self.B = np.array([2.05205114e-02, 2.17915586e-02, 2.29703418e-02] * (self.joints_num // 3), dtype=np.float64)
-        self.Fv = np.array([8.81394325e-02, 8.67753849e-02, 1.18672339e-01] * (self.joints_num // 3), dtype=np.float64)
+        if compensation:
+            self.B = np.array([2.05205114e-02, 2.17915586e-02, 2.29703418e-02] * (self.joints_num // 3), dtype=np.float64)
+            self.Fv = np.array([8.81394325e-02, 8.67753849e-02, 1.18672339e-01] * (self.joints_num // 3), dtype=np.float64)
+        else:
+            self.B = np.zeros(self.joints_num, dtype=np.float64)
+            self.Fv = np.zeros(self.joints_num, dtype=np.float64)
         self.transition_start = 0.0
         self.transition_end = 1.0
         self.dT = 0.001
-        self.chirp_t = np.arange(0, self.chirp_duration + self.dT, self.dT / 2.0, dtype = np.float64)
-        phase = 270
-        self.chirp = chirp(self.chirp_t, self.chirp_F0, self.transition_end, self.chirp_F1, phi = phase)
         self.trajectory = CubicSpline
         
         self.log = open("controller_log.txt", "w")
@@ -60,33 +58,52 @@ class ControllerIdent():
     
     def prepare_move(self, t, q, qv):
         self.transition_start = t
-        self.transition_end = t + self.chirp_duration
+        self.transition_end = t + self.move_duration
+        self.ref_velocity = np.zeros(self.joints_num, dtype=np.float64)
+        
+    def move_all_joints(self, t, q, qv):
+        if self.machine.is_state('first_test', self):
+            factor = 1.0
+        elif self.machine.is_state('second_test', self):
+            factor = 0.8
+        elif self.machine.is_state('third_test', self):
+            factor = 0.4
+        position = np.tile(self.joint_sin_pos, (self.joints_num // 3))
+        velocity = np.tile(self.joint_sin_pos, (self.joints_num // 3))
+        position = np.sin(self.SIN_W * factor * (t - self.transition_start)) * position
+        velocity = np.sin(self.SIN_W * factor * (t - self.transition_start)) * velocity
+        if self.joints_num == 13:
+            self.ref_position[:6] = position
+            self.ref_velocity[:6] = velocity
+            self.ref_position[7:] = position
+            self.ref_velocity[7:] = velocity
+        else:
+            self.ref_position = position
+            self.ref_velocity = velocity
+        self.control = self.Kp * (self.ref_position - q) + self.Kd * (-qv) + self.B * self.ref_velocity + self.Fv * np.sign(self.ref_velocity)
+        self.control = np.clip(self.control, -self.max_control, self.max_control)
+        return t >= self.transition_end
 
         
     def move_joint(self, t, q, qv):
         index = -1
-        torque = 0.0
-        control = 0.0
+        position = 0.0
+        velocity = 0.0
         if self.machine.is_state('move_knee', self):
             index = 2
-            torque = self.knee_torque
         elif self.machine.is_state('move_hip', self):
             index = 1
-            torque = self.hip_torque
         elif self.machine.is_state('rotate_hip', self):
             index = 0
-            torque = self.hip_rot_torque
-        try:
-            chirp_index = np.where(self.chirp_t >= t - self.transition_start)[0][0]
-            control = self.chirp[chirp_index] * torque
-        except:
-            self.log.write("Index out of range \n")
-        self.control = self.Kp * (self.ref_position - q) + self.Kd * (-qv)
+        position = np.sin(self.SIN_W * (t - self.transition_start)) * self.joint_sin_pos[index]
+        velocity = np.cos(self.SIN_W * (t - self.transition_start)) * self.joint_sin_pos[index]
         while (index < self.joints_num):
-            self.control[index] = control
+            self.ref_position[index] = position
+            self.ref_velocity[index] = velocity
             index += 3
             if (self.joints_num == 13) and (index >=6 and index<= 8):
                 index +=1
+        self.control = self.Kp * (self.ref_position - q) + self.Kd * (-qv) + self.B * self.ref_velocity + self.Fv * np.sign(self.ref_velocity)
         self.control = np.clip(self.control, -self.max_control, self.max_control)
         return t >= self.transition_end
     
@@ -119,17 +136,17 @@ class ControllerIdent():
         return t >= self.transition_end
     
     def calculate_trajectory(self, t, q, qv):
-        self.ref_velocity = np.array([0.0] * self.joints_num, dtype=np.float64)
+        self.ref_velocity = np.zeros(self.joints_num, dtype=np.float64)
         end_position = -1
         i = 0
         index = -1
         columns_num = self.joints_num // 3
         q_points = np.ndarray((2, columns_num), dtype=np.float64)
         if self.machine.is_state('position_calf', self):
-            end_position = 2.8
+            end_position = 0
             index = 2
         elif self.machine.is_state('position_thigh', self):
-            end_position = 1.45
+            end_position = 0
             index = 1
         while (index < self.joints_num):
             q_points[:, i] = [q[index], end_position]
