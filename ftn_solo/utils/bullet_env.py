@@ -18,7 +18,7 @@ from robot_properties_solo.robot_resources import Resources
 
 
 class BulletEnv(object):
-    def __init__(self,robot_version, server=pybullet.GUI, dt=0.001):
+    def __init__(self, robot_version, server=pybullet.GUI, dt=0.001):
         self.dt = dt
         self.objects = []
         self.robots = []
@@ -28,14 +28,10 @@ class BulletEnv(object):
         pybullet.setPhysicsEngineParameter(fixedTimeStep=dt, numSubSteps=1)
         self.resources = Resources(robot_version)
 
-    def add_robot(self, robot):
-        self.robots.append(robot)
-        return robot
-
     def add_object_from_urdf(
         self, urdf_path, pos=[0, 0, 0], orn=[0, 0, 0, 1], useFixedBase=True
     ):
-        
+
         object_id = pybullet.loadURDF(urdf_path, useFixedBase=useFixedBase)
         pybullet.resetBasePositionAndOrientation(object_id, pos, orn)
         self.objects.append(object_id)
@@ -43,18 +39,18 @@ class BulletEnv(object):
 
     def start_video_recording(self, file_name):
         self.file_name = file_name
-        pybullet.startStateLogging(pybullet.STATE_LOGGING_VIDEO_MP4, self.file_name)
+        pybullet.startStateLogging(
+            pybullet.STATE_LOGGING_VIDEO_MP4, self.file_name)
 
     def stop_video_recording(self):
         if hasattr(self, "file_name"):
-            pybullet.stopStateLogging(pybullet.STATE_LOGGING_VIDEO_MP4, self.file_name)
+            pybullet.stopStateLogging(
+                pybullet.STATE_LOGGING_VIDEO_MP4, self.file_name)
 
     def step(self, sleep=False):
         if sleep:
             time.sleep(self.dt)
         pybullet.stepSimulation()
-
-        
 
     def print_physics_engine_params(self):
         params = pybullet.getPhysicsEngineParameters(self.physicsClient)
@@ -64,8 +60,8 @@ class BulletEnv(object):
 
 
 class BulletEnvWithGround(BulletEnv):
-    def __init__(self,robot_version, server=pybullet.GUI, dt=0.001):
-        super().__init__(robot_version,server, dt)
+    def __init__(self, robot_version, server=pybullet.GUI, dt=0.001):
+        super().__init__(robot_version, server, dt)
         plane_urdf = self.resources.urdf_plane_path
         self.add_object_from_urdf(plane_urdf)
 

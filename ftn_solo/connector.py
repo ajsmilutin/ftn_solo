@@ -34,7 +34,7 @@ class Connector():
 
 
 class RobotConnector(Connector):
-    def __init__(self, robot_version, logger, *args, simulator) -> None:
+    def __init__(self, robot_version, logger, *args, **kwargs) -> None:
         super().__init__(robot_version, logger, *args, **kwargs)
         import libodri_control_interface_pywrap as oci
         self.running = True
@@ -63,12 +63,12 @@ class RobotConnector(Connector):
 
 
 class PybulletConnector(Connector):
-    def __init__(self, robot_version, logger, fixed=False, pos=[0, 0, 0.4], rpy=[0.0, 0.0, 0.0]) -> None:
+    def __init__(self, robot_version, logger, fixed=False, pos=[0, 0, 0.4], rpy=[0.0, 0.0, 0.0], *args, **kwargs) -> None:
         super().__init__(robot_version, logger)
 
         self.env = BulletEnvWithGround(robot_version)
         orn = pybullet.getQuaternionFromEuler(rpy)
-        self.nanoseconds = 1000000
+        self.nanoseconds = int(self.env.dt*1e9)
         self.logger = logger
         self.robot_id = pybullet.loadURDF(
             self.resources.urdf_path,
@@ -78,8 +78,6 @@ class PybulletConnector(Connector):
             useFixedBase=fixed,
         )
 
-        self.env.add_robot(self.robot_id)
-        self.fixed = fixed
         self.joint_names = []
         self.joint_ids = []
         self.running = True
@@ -124,7 +122,7 @@ class PybulletConnector(Connector):
 
 
 class MujocoConnector(Connector):
-    def __init__(self, robot_version, logger, use_gui=True, start_paused=False, fixed=False, pos=[0, 0, 0.4], rpy=[0.0, 0.0, 0.0]) -> None:
+    def __init__(self, robot_version, logger, use_gui=True, start_paused=False, fixed=False, pos=[0, 0, 0.4], rpy=[0.0, 0.0, 0.0], *args, **kwargs) -> None:
         super().__init__(robot_version, logger)
         self.model = mujoco.MjModel.from_xml_path(self.resources.mjcf_path)
         self.model.opt.timestep = 1e-3
@@ -143,7 +141,6 @@ class MujocoConnector(Connector):
         self.viewer = None
         self.running = True
         self.nanoseconds = int(self.model.opt.timestep*1e9)
-        logger.error(str(self.nanoseconds))
         if self.use_gui:
             self.viewer = mujoco.viewer.launch_passive(
                 self.model, self.data, show_right_ui=False, key_callback=self.key_callback)
