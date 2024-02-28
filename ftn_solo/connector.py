@@ -13,7 +13,7 @@ import csv
 from robot_properties_solo.robot_resources import Resources
 from ftn_solo.controllers.controller_ident import ControllerIdent
 from ftn_solo.controllers.controller_test import ControllerTest
-
+import math
 
 def RPY2Quat(rpy):
     q1 = np.ndarray((4,), dtype=np.float64)
@@ -37,9 +37,10 @@ class RobotConnector(Connector):
         import libodri_control_interface_pywrap as oci
 
         super().__init__(robot_version, logger, *args, **kwargs)
-        self.robot = oci.robot_from_yaml_file(self.resources.config_path)
+        self.robot = oci.robot_from_yaml_file("/home/ajsmilutin/solo_ws/src/robot_properties_solo/src/robot_properties_solo/resources/config/solo12_driver.yaml")
         self.robot.initialize(np.array([0]*self.robot.joints.number_motors))
         self.running = True
+        self.logger.error(controller)
         if controller == 'ident':
             self.controller = ControllerIdent(self.robot.joints.number_motors)
         elif controller == 'test_comp':
@@ -48,8 +49,20 @@ class RobotConnector(Connector):
             self.controller = ControllerTest(self.robot.joints.number_motors, False)
         else:
             self.logger.error('Unknown controller selected!!! Switching to Ident controller!')
-            self.controller = ControllerIdent(self.robot.joints.number_motors)
-
+        self.joint_names = [ 
+                "FL_HAA",
+                "FL_HFE",
+                "FL_KFE",
+                "FR_HAA",
+                "HL_HAA",
+                "HL_HFE",
+                "HL_KFE",
+                "HR_HAA",
+                "HR_HFE",
+                "HR_KFE",
+                "FR_HFE",
+                "FR_KFE",
+            ]
     def get_data(self):
         self.robot.parse_sensor_data()
         return self.robot.joints.positions, self.robot.joints.velocities
@@ -140,7 +153,7 @@ class ConnectorNode(Node):
         if sim:
             self.time_publisher = self.create_publisher(Clock, "/clock", 10)
         self.clock = Clock()
-        log_file = open("ident_log.csv", "w")
+        log_file = open("/home/ajsmilutin/solo_ws/ident_log.csv", "w")
         self.log_file = csv.writer(log_file)
         self.declare_parameter('use_gui', True)
         self.declare_parameter('start_paused', False)
@@ -204,7 +217,15 @@ class ConnectorNode(Node):
             else:
                 elapsed = (self.get_clock().now() - start).nanoseconds / 1e9
 
-            torques = self.connector.controller.compute_control(elapsed, position, velocity)
+            # torques = self.connector.controller.compute_control(elapsed, position, velocity)
+            des_pos = np.array(
+                [
+                    0.3,  # FRHAA
+
+                ]*12)
+            err = (des_pos*math.sin(elapsed/2) - position)
+            torques = 8.0 * err +  0.025 *(des_pos*math.cos(elapsed/2)/(2) - velocity)
+            self.get_logger().error("Position" + str(position))
             self.connector.set_torques(torques)
             self.log_data(elapsed, torques, position, velocity)
             if self.connector.step():
@@ -219,10 +240,11 @@ class ConnectorNode(Node):
                         joint_state.header.stamp = self.clock.clock
                     else:
                         joint_state.header.stamp = self.get_clock().now().to_msg()
-                    joint_state.position = position.tolist()
-                    joint_state.velocity = velocity.tolist()
+                    joint_state.position = position.tolist() +[0.0,0.0,0.0,0.0, 0.0, 0.0,0.0, 0.0]
+                    joint_state.velocity = velocity.tolist()+[0.0,0.0,0.0,0.0, 0.0, 0.0,0.0, 0.0]
                     joint_state.name = self.connector.joint_names
                     self.join_state_pub.publish(joint_state)
+
 
 
 def main(args=None):
