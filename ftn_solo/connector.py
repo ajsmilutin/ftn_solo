@@ -59,6 +59,65 @@ class RobotConnector(Connector):
         return True
 
 
+class PybulletConnector(Connector):
+    def __init__(self, robot_version, logger, fixed=False, pos=[0, 0, 0.4], rpy=[0.0, 0.0, 0.0], *args, **kwargs) -> None:
+        super().__init__(robot_version, logger)
+
+        self.env = BulletEnvWithGround(robot_version)
+        orn = pybullet.getQuaternionFromEuler(rpy)
+        self.nanoseconds = int(self.env.dt*1e9)
+        self.logger = logger
+        self.robot_id = pybullet.loadURDF(
+            self.resources.urdf_path,
+            pos,
+            orn,
+            flags=pybullet.URDF_USE_INERTIA_FROM_FILE,
+            useFixedBase=fixed,
+        )
+
+        self.joint_names = []
+        self.joint_ids = []
+        self.running = True
+        for ji in range(pybullet.getNumJoints(self.robot_id)):
+            self.joint_names.append(pybullet.getJointInfo(
+                self.robot_id, ji)[1].decode("UTF-8"))
+            self.joint_ids.append(pybullet.getJointInfo(self.robot_id, ji)[0])
+
+        if robot_version == 'solo12':
+            self.joint_ids = self.joint_ids[0:12]
+        elif robot_version == 'solo6':
+            self.joint_ids = self.joint_ids[0:6]
+
+    def get_data(self):
+
+        q = np.empty(len(self.joint_ids))
+        dq = np.empty(len(self.joint_ids))
+
+        joint_states = pybullet.getJointStates(self.robot_id, self.joint_ids)
+
+        for i in range(len(self.joint_ids)):
+            q[i] = joint_states[i][0]
+            dq[i] = joint_states[i][1]
+
+        return q, dq
+
+    def set_torques(self, tau):
+
+        pybullet.setJointMotorControlArray(
+            self.robot_id,
+            self.joint_ids,
+            pybullet.TORQUE_CONTROL,
+            forces=tau[self.joint_ids]
+        )
+
+    def step(self):
+        self.env.step()
+        return True
+
+    def is_running(self):
+        return self.running
+
+
 class MujocoConnector(Connector):
     def __init__(self, robot_version, logger, use_gui=True, start_paused=False, fixed=False, pos=[0, 0, 0.4], rpy=[0.0, 0.0, 0.0]) -> None:
         super().__init__(robot_version, logger)
