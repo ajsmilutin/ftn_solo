@@ -2,7 +2,9 @@
 import sys
 import mujoco
 import mujoco.viewer
+import pybullet
 import rclpy
+from .utils.bullet_env import BulletEnvWithGround
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
 import numpy as np
@@ -23,6 +25,7 @@ def RPY2Quat(rpy):
     mujoco.mju_axisAngle2Quat(q2, [1, 0, 0], rpy[0])
     mujoco.mju_mulQuat(q1, q3, q2)
     return q1
+
 
 class Connector():
     def __init__(self, robot_version, logger, *args, **kwargs) -> None:
@@ -51,7 +54,7 @@ class RobotConnector(Connector):
     def set_torques(self, torques):
         self.robot.joints.set_torques(torques)
 
-    def is_rinning(self):
+    def is_running(self):
         return self.running
 
     def step(self):
@@ -124,7 +127,7 @@ class PybulletConnector(Connector):
 
 
 class MujocoConnector(Connector):
-    def __init__(self, robot_version, logger, use_gui=True, start_paused=False, fixed=False, pos=[0, 0, 0.4], rpy=[0.0, 0.0, 0.0]) -> None:
+    def __init__(self, robot_version, logger, use_gui=True, start_paused=False, fixed=False, pos=[0, 0, 0.4], rpy=[0.0, 0.0, 0.0], *args, **kwargs) -> None:
         super().__init__(robot_version, logger)
         self.model = mujoco.MjModel.from_xml_path(self.resources.mjcf_path)
         self.model.opt.timestep = 1e-3
@@ -142,8 +145,7 @@ class MujocoConnector(Connector):
         self.use_gui = use_gui
         self.viewer = None
         self.running = True
-        self.ns = int(self.model.opt.timestep*1e9)
-
+        self.nanoseconds = int(self.model.opt.timestep*1e9)
         if self.use_gui:
             self.viewer = mujoco.viewer.launch_passive(
                 self.model, self.data, show_right_ui=False, key_callback=self.key_callback)
@@ -160,7 +162,7 @@ class MujocoConnector(Connector):
     def set_torques(self, torques):
         self.data.ctrl = torques
 
-    def is_rinning(self):
+    def is_running(self):
         return self.running
 
     def step(self):
@@ -181,8 +183,8 @@ class MujocoConnector(Connector):
 class ConnectorNode(Node):
     def __init__(self):
         super().__init__("first_node")
-        self.declare_parameter('sim', False)
-        sim = self.get_parameter('sim').get_parameter_value().bool_value
+        self.declare_parameter('sim', rclpy.Parameter.Type.STRING)
+        sim = self.get_parameter('sim').get_parameter_value().string_value
         self.time_publisher = None
         if sim:
             self.time_publisher = self.create_publisher(Clock, "/clock", 10)
@@ -204,10 +206,16 @@ class ConnectorNode(Node):
                 'start_paused').get_parameter_value().bool_value
             fixed = self.get_parameter(
                 'fixed').get_parameter_value().bool_value
-            pos = self.get_parameter('pos').get_parameter_value().double_array_value
-            rpy = self.get_parameter('rpy').get_parameter_value().double_array_value
-            self.connector = MujocoConnector(robot_version, self.get_logger(),
-                                             use_gui=use_gui, start_paused=start_paused, fixed=fixed, pos=pos, rpy=rpy)
+            pos = self.get_parameter(
+                'pos').get_parameter_value().double_array_value
+            rpy = self.get_parameter(
+                'rpy').get_parameter_value().double_array_value
+            if sim == 'mujoco':
+                self.connector = MujocoConnector(robot_version, self.get_logger(),
+                                                 use_gui=use_gui, start_paused=start_paused, fixed=fixed, pos=pos, rpy=rpy)
+            elif sim == 'pybullet':
+                self.connector = PybulletConnector(
+                    robot_version, self.get_logger(), fixed=fixed, pos=pos, rpy=rpy)
         else:
             self.connector = RobotConnector(robot_version,  self.get_logger())
 
@@ -217,7 +225,7 @@ class ConnectorNode(Node):
             [0.0, 0, -1.57, 0, 0, -1.57, 0.3, 0.9, -1.57, -0.3, 0.9, -1.57])
         start = self.get_clock().now()
         joint_state = JointState()
-        while self.connector.is_rinning():
+        while self.connector.is_running():
             position, velocity = self.connector.get_data()
             if self.time_publisher:
                 elapsed = self.clock.clock.sec + self.clock.clock.nanosec / 1e9
@@ -226,10 +234,11 @@ class ConnectorNode(Node):
 
             torques = 5 * (des_pos*0.5*(1-math.cos(5*elapsed)) - position) + \
                 0.00725 * (des_pos*0.5*math.sin(5*elapsed) - velocity)
+
             self.connector.set_torques(torques)
             if self.connector.step():
                 if self.time_publisher:
-                    self.clock.clock.nanosec += self.connector.ns
+                    self.clock.clock.nanosec += self.connector.nanoseconds
                     self.clock.clock.sec += self.clock.clock.nanosec // 1000000000
                     self.clock.clock.nanosec = self.clock.clock.nanosec % 1000000000
                     self.time_publisher.publish(self.clock)
