@@ -109,7 +109,7 @@ class PybulletConnector(Connector):
 
         return q, dq
 
-    def set_torques(self, tau):
+    def set_torques(self, torques):
 
         pybullet.setJointMotorControlArray(
             self.robot_id,
@@ -119,7 +119,7 @@ class PybulletConnector(Connector):
         )
 
     def step(self):
-        self.env.step()
+        self.env.step(True)
         return True
 
     def is_running(self):
