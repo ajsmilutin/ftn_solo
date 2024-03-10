@@ -80,28 +80,14 @@ class PybulletConnector(Connector):
 
         self.joint_names = []
         self.joint_ids = []
-        self.num_joints = []
-        self.forces = []
-        self.i = 0
         self.running = True
-        for ji in range(pybullet.getNumJoints(self.robot_id)):
-            pybullet.changeDynamics(
-                self.robot_id,
-                ji,
-                linearDamping=0.04,
-                angularDamping=0.04,
-                restitution=0.0,
-                lateralFriction=0.5,
-            )
-            joint_name = (pybullet.getJointInfo(
-                self.robot_id, ji)[1].decode("UTF-8"))
-            joint_id = (pybullet.getJointInfo(self.robot_id, ji)[0])
 
-            if '_ANKLE' not in joint_name:
-                self.joint_names.append(joint_name)
-                self.joint_ids.append(joint_id)
-                self.num_joints.append(self.i)
-                self.i += 1
+        for ji in range(pybullet.getNumJoints(self.robot_id)):
+            if pybullet.JOINT_FIXED != pybullet.getJointInfo(self.robot_id, ji)[2]:
+                self.joint_names.append(pybullet.getJointInfo(
+                    self.robot_id, ji)[1].decode("UTF-8"))
+                self.joint_ids.append(
+                    pybullet.getJointInfo(self.robot_id, ji)[0])
 
         pybullet.setJointMotorControlArray(
             self.robot_id,
@@ -129,7 +115,7 @@ class PybulletConnector(Connector):
             self.robot_id,
             self.joint_ids,
             pybullet.TORQUE_CONTROL,
-            forces=torques[self.num_joints]
+            forces=torques
         )
 
     def step(self):
