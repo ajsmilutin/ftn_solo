@@ -80,16 +80,25 @@ class PybulletConnector(Connector):
 
         self.joint_names = []
         self.joint_ids = []
+        self.end_effector_ids = []
         self.running = True
-        for ji in range(pybullet.getNumJoints(self.robot_id)):
-            self.joint_names.append(pybullet.getJointInfo(
-                self.robot_id, ji)[1].decode("UTF-8"))
-            self.joint_ids.append(pybullet.getJointInfo(self.robot_id, ji)[0])
 
-        if robot_version == 'solo12':
-            self.joint_ids = self.joint_ids[0:12]
-        elif robot_version == 'solo6':
-            self.joint_ids = self.joint_ids[0:6]
+        for ji in range(pybullet.getNumJoints(self.robot_id)):
+            if pybullet.JOINT_FIXED != pybullet.getJointInfo(self.robot_id, ji)[2]:
+                self.joint_names.append(pybullet.getJointInfo(
+                    self.robot_id, ji)[1].decode("UTF-8"))
+                self.joint_ids.append(
+                    pybullet.getJointInfo(self.robot_id, ji)[0])
+            else:
+                self.end_effector_ids.append(
+                    pybullet.getJointInfo(self.robot_id, ji)[0])
+
+        pybullet.setJointMotorControlArray(
+            self.robot_id,
+            self.joint_ids,
+            pybullet.VELOCITY_CONTROL,
+            forces=np.zeros(len(self.joint_ids)),
+        )
 
     def get_data(self):
 
@@ -104,17 +113,17 @@ class PybulletConnector(Connector):
 
         return q, dq
 
-    def set_torques(self, tau):
+    def set_torques(self, torques):
 
         pybullet.setJointMotorControlArray(
             self.robot_id,
             self.joint_ids,
             pybullet.TORQUE_CONTROL,
-            forces=tau[self.joint_ids]
+            forces=torques
         )
 
     def step(self):
-        self.env.step()
+        self.env.step(True)
         return True
 
     def is_running(self):
