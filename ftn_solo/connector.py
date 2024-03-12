@@ -81,6 +81,8 @@ class PybulletConnector(Connector):
         self.joint_names = []
         self.joint_ids = []
         self.end_effector_ids = []
+        self.touch_sensors = ['fl','fr','hl','hr']
+        self.reading = {}
         self.running = True
         self.rot_base_to_imu = np.identity(3)
         self.r_base_to_imu = np.array([0.10407, -0.00635, 0.01540])
@@ -113,6 +115,22 @@ class PybulletConnector(Connector):
             dq[i] = joint_states[i][1]
 
         return q, dq
+    
+    def contact_sensors(self):
+
+        self.reading = {name: False for name in self.touch_sensors}
+        cp = pybullet.getContactPoints(self.robot_id)
+
+        for j, name in enumerate(self.touch_sensors):
+            for ci in cp:
+                if ci[3] in self.end_effector_ids:
+                    i = np.where(np.array(self.end_effector_ids)
+                                 == ci[3])[0][0]
+                    if i == j:
+                        self.reading[name] = True
+                        continue
+
+        return self.reading
 
     def imu_sensor(self):
 
