@@ -82,6 +82,10 @@ class PybulletConnector(Connector):
         self.joint_ids = []
         self.end_effector_ids = []
         self.running = True
+        self.rot_base_to_imu = np.identity(3)
+        self.base_linacc = np.zeros(3)
+        self.base_angacc = np.zeros(3)
+        self.r_base_to_imu = np.array([0.10407, -0.00635, 0.01540])
 
         for ji in range(pybullet.getNumJoints(self.robot_id)):
             if pybullet.JOINT_FIXED != pybullet.getJointInfo(self.robot_id, ji)[2]:
@@ -111,6 +115,54 @@ class PybulletConnector(Connector):
             dq[i] = joint_states[i][1]
 
         return q, dq
+
+    def angular_velocity(self):
+
+        base_inertia_pos, base_inertia_quat = pybullet.getBasePositionAndOrientation(
+            self.robot_id
+        )
+        rot_base_to_world = np.array(
+            pybullet.getMatrixFromQuaternion(base_inertia_quat)
+        ).reshape((3, 3))
+        base_linvel, base_angvel = pybullet.getBaseVelocity(self.robot_id)
+
+        return (
+            self.rot_base_to_imu.dot(
+                rot_base_to_world.T.dot(np.array(base_angvel)))
+        )
+
+    def linear_acceleration(self):
+
+        base_inertia_pos, base_inertia_quat = pybullet.getBasePositionAndOrientation(
+            self.robot_id
+        )
+        rot_base_to_world = np.array(
+            pybullet.getMatrixFromQuaternion(base_inertia_quat)
+        ).reshape((3, 3))
+        base_linvel, base_angvel = pybullet.getBaseVelocity(self.robot_id)
+
+        imu_linacc = (
+            self.base_linacc
+            + np.cross(self.base_angacc, rot_base_to_world @
+                       self.r_base_to_imu)
+            + np.cross(
+                base_angvel,
+                np.cross(base_angvel, rot_base_to_world @ self.r_base_to_imu),
+            )
+        )
+
+        return (
+            self.rot_base_to_imu.dot(
+                rot_base_to_world.T.dot(
+                    imu_linacc + np.array([0.0, 0.0, 9.81]))
+            )
+        )
+
+    def sensor_readings(self):
+
+        sensors = {"imu": (self.angular_velocity(), self.linear_acceleration()),
+                   "touch": self.contact_sensors()}
+        return sensors
 
     def set_torques(self, torques):
         pybullet.setJointMotorControlArray(
