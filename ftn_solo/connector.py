@@ -4,7 +4,7 @@ import mujoco
 import mujoco.viewer
 import pybullet
 import rclpy
-from .utils.bullet_env import BulletEnvWithGround
+from ftn_solo.utils.bullet_env import BulletEnvWithGround
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
 import numpy as np
@@ -101,7 +101,6 @@ class PybulletConnector(Connector):
         )
 
     def get_data(self):
-
         q = np.empty(len(self.joint_ids))
         dq = np.empty(len(self.joint_ids))
 
@@ -114,7 +113,6 @@ class PybulletConnector(Connector):
         return q, dq
 
     def set_torques(self, torques):
-
         pybullet.setJointMotorControlArray(
             self.robot_id,
             self.joint_ids,
@@ -187,10 +185,10 @@ class MujocoConnector(Connector):
 class ConnectorNode(Node):
     def __init__(self):
         super().__init__("first_node")
-        self.declare_parameter('sim', rclpy.Parameter.Type.STRING)
-        sim = self.get_parameter('sim').get_parameter_value().string_value
+        self.declare_parameter('hardware', rclpy.Parameter.Type.STRING)
+        hardware = self.get_parameter('hardware').get_parameter_value().string_value
         self.time_publisher = None
-        if sim:
+        if hardware.lower() != "robot":
             self.time_publisher = self.create_publisher(Clock, "/clock", 10)
         self.clock = Clock()
         self.declare_parameter('use_gui', True)
@@ -203,7 +201,7 @@ class ConnectorNode(Node):
             JointState, "/joint_states", 10)
         robot_version = self.get_parameter(
             'robot_version').get_parameter_value().string_value
-        if sim:
+        if hardware.lower() != "robot":
             use_gui = self.get_parameter(
                 'use_gui').get_parameter_value().bool_value
             start_paused = self.get_parameter(
@@ -214,10 +212,10 @@ class ConnectorNode(Node):
                 'pos').get_parameter_value().double_array_value
             rpy = self.get_parameter(
                 'rpy').get_parameter_value().double_array_value
-            if sim == 'mujoco':
+            if hardware.lower() == 'mujoco':
                 self.connector = MujocoConnector(robot_version, self.get_logger(),
                                                  use_gui=use_gui, start_paused=start_paused, fixed=fixed, pos=pos, rpy=rpy)
-            elif sim == 'pybullet':
+            elif hardware.lower() == 'pybullet':
                 self.connector = PybulletConnector(
                     robot_version, self.get_logger(), fixed=fixed, pos=pos, rpy=rpy)
         else:
