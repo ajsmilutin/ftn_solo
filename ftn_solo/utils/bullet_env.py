@@ -28,10 +28,7 @@ class BulletEnv(object):
         pybullet.setPhysicsEngineParameter(fixedTimeStep=dt, numSubSteps=1)
         self.resources = Resources(robot_version)
 
-    def add_object_from_urdf(
-        self, urdf_path, pos=[0, 0, 0], orn=[0, 0, 0, 1], useFixedBase=True
-    ):
-
+    def add_object_from_urdf(self, urdf_path, pos=[0, 0, 0], orn=[0, 0, 0, 1], useFixedBase=True):
         object_id = pybullet.loadURDF(urdf_path, useFixedBase=useFixedBase)
         pybullet.resetBasePositionAndOrientation(object_id, pos, orn)
         self.objects.append(object_id)
