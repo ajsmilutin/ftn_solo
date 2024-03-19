@@ -1,4 +1,3 @@
-from operator import indexOf
 import numpy as np
 from transitions import Machine
 from scipy.signal import chirp
@@ -39,8 +38,8 @@ class ControllerIdent():
         self.control = np.array([0.0] * self.joints_num, dtype=np.float64)
         self.ref_position = np.array([0.0] * self.joints_num, dtype=np.float64)
         self.ref_velocity = np.array([0.0] * self.joints_num, dtype=np.float64)
-        self.B = 0*np.array([2.05205114e-02, 2.17915586e-02, 2.29703418e-02, 0] * (self.joints_num // 3), dtype=np.float64)
-        self.Fv = 0*np.array([8.81394325e-02, 8.67753849e-02, 1.18672339e-01, 0] * (self.joints_num // 3), dtype=np.float64)
+        self.B = np.array([2.05205114e-02, 2.17915586e-02, 2.29703418e-02] * (self.joints_num // 3), dtype=np.float64)
+        self.Fv = np.array([8.81394325e-02, 8.67753849e-02, 1.18672339e-01] * (self.joints_num // 3), dtype=np.float64)
         self.transition_start = 0.0
         self.transition_end = 1.0
         self.dT = 0.001
@@ -83,11 +82,11 @@ class ControllerIdent():
         except:
             self.log.write("Index out of range \n")
         self.control = self.Kp * (self.ref_position - q) + self.Kd * (-qv)
-#        while (index < self.joints_num):
-        self.control[index] = control
-        index += 3
-        if (self.joints_num == 13) and (index >=6 and index<= 8):
-            index +=1
+        while (index < self.joints_num):
+            self.control[index] = control
+            index += 3
+            if (self.joints_num == 13) and (index >=6 and index<= 8):
+                index +=1
         self.control = np.clip(self.control, -self.max_control, self.max_control)
         return t >= self.transition_end
     
@@ -101,11 +100,10 @@ class ControllerIdent():
             index += 3
             if (self.joints_num == 13) and (index >=6 and index <= 8):
                 index += 1
-    
         self.control = self.Kp * (self.ref_position - q) + self.Kd * (-qv) + self.B * self.ref_velocity + self.Fv * np.sign(self.ref_velocity)
         self.control = np.clip(self.control, -self.max_control, self.max_control)
         return t >= self.transition_end
-
+    
     def prepare_thigh(self, t, q, qv):
         index = 1
         i = 0
@@ -128,10 +126,10 @@ class ControllerIdent():
         columns_num = self.joints_num // 3
         q_points = np.ndarray((2, columns_num), dtype=np.float64)
         if self.machine.is_state('position_calf', self):
-            end_position = 2.7
+            end_position = 2.8
             index = 2
         elif self.machine.is_state('position_thigh', self):
-            end_position = 1.4
+            end_position = 1.45
             index = 1
         while (index < self.joints_num):
             q_points[:, i] = [q[index], end_position]

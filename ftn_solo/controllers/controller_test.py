@@ -11,7 +11,7 @@ class ControllerTest():
     Kp = 9.0 #25
     Kd = 0.015 #0.00725
     max_control = 1.8 # 0.025*8*9
-    joint_sin_pos = np.array([0.5, 1.0, 1.57, 0], dtype=np.float64)
+    joint_sin_pos = np.array([0.5, 1.0, 1.57], dtype=np.float64)
     
     def __init__(self, num_of_joints, compensation) -> None:
         self.machine = Machine(model = self, states = ControllerTest.states, initial = 'start')
@@ -36,8 +36,8 @@ class ControllerTest():
         self.ref_position = np.array([0.0] * self.joints_num, dtype=np.float64)
         self.ref_velocity = np.array([0.0] * self.joints_num, dtype=np.float64)
         if compensation:
-            self.B = np.array([2.05205114e-02, 2.17915586e-02, 2.29703418e-02, 0] , dtype=np.float64)
-            self.Fv = np.array([8.81394325e-02, 8.67753849e-02, 1.18672339e-01, 0], dtype=np.float64)
+            self.B = np.array([2.05205114e-02, 2.17915586e-02, 2.29703418e-02] * (self.joints_num // 3), dtype=np.float64)
+            self.Fv = np.array([8.81394325e-02, 8.67753849e-02, 1.18672339e-01] * (self.joints_num // 3), dtype=np.float64)
         else:
             self.B = np.zeros(self.joints_num, dtype=np.float64)
             self.Fv = np.zeros(self.joints_num, dtype=np.float64)
@@ -68,11 +68,10 @@ class ControllerTest():
             factor = 0.8
         elif self.machine.is_state('third_test', self):
             factor = 0.4
-        position = self.joint_sin_pos
-        position = np.sin(self.SIN_W * factor *
-                          (t - self.transition_start)) * position
-        velocity = np.cos(self.SIN_W * factor * (t -
-                          self.transition_start)) * position*factor*self.SIN_W
+        position = np.tile(self.joint_sin_pos, (self.joints_num // 3))
+        velocity = np.tile(self.joint_sin_pos, (self.joints_num // 3))
+        position = np.sin(self.SIN_W * factor * (t - self.transition_start)) * position
+        velocity = np.cos(self.SIN_W * factor * (t - self.transition_start)) * velocity * factor * self.SIN_W
         if self.joints_num == 13:
             self.ref_position[:6] = position
             self.ref_velocity[:6] = velocity
@@ -81,7 +80,7 @@ class ControllerTest():
         else:
             self.ref_position = position
             self.ref_velocity = velocity
-        self.control = self.Kp * (self.ref_position - q) + self.Kd * (self.ref_velocity-qv) + self.B * self.ref_velocity + self.Fv * np.sign(self.ref_velocity)
+        self.control = self.Kp * (self.ref_position - q) + self.Kd * (self.ref_velocity - qv) + self.B * self.ref_velocity + self.Fv * np.sign(self.ref_velocity)
         self.control = np.clip(self.control, -self.max_control, self.max_control)
         return t >= self.transition_end
 
@@ -104,7 +103,7 @@ class ControllerTest():
             index += 3
             if (self.joints_num == 13) and (index >=6 and index<= 8):
                 index +=1
-        self.control = self.Kp * (self.ref_position - q) + self.Kd * (self.ref_velocity-qv) + self.B * self.ref_velocity + self.Fv * np.sign(self.ref_velocity)
+        self.control = self.Kp * (self.ref_position - q) + self.Kd * (self.ref_velocity - qv) + self.B * self.ref_velocity + self.Fv * np.sign(self.ref_velocity)
         self.control = np.clip(self.control, -self.max_control, self.max_control)
         return t >= self.transition_end
     
@@ -118,7 +117,7 @@ class ControllerTest():
             index += 3
             if (self.joints_num == 13) and (index >=6 and index <= 8):
                 index += 1
-        self.control = self.Kp * (self.ref_position - q) + self.Kd * (self.ref_velocity-qv) + self.B * self.ref_velocity + self.Fv * np.sign(self.ref_velocity)
+        self.control = self.Kp * (self.ref_position - q) + self.Kd * (self.ref_velocity - qv) + self.B * self.ref_velocity + self.Fv * np.sign(self.ref_velocity)
         self.control = np.clip(self.control, -self.max_control, self.max_control)
         return t >= self.transition_end
     
@@ -132,7 +131,7 @@ class ControllerTest():
             index += 3
             if (self.joints_num == 13) and (index >=6 and index <= 8):
                 index += 1
-        self.control = self.Kp * (self.ref_position - q) + self.Kd * (-qv) + self.B * self.ref_velocity + self.Fv * np.sign(self.ref_velocity)
+        self.control = self.Kp * (self.ref_position - q) + self.Kd * (self.ref_velocity - qv) + self.B * self.ref_velocity + self.Fv * np.sign(self.ref_velocity)
         self.control = np.clip(self.control, -self.max_control, self.max_control)
         return t >= self.transition_end
     
@@ -173,7 +172,7 @@ class ControllerTest():
     def go_to_start(self, t, q, qv):
         self.ref_position = self.trajectory(t)
         self.ref_velocity = self.trajectory(t, 1)
-        self.control = self.Kp * (self.ref_position - q) + self.Kd * (-qv) + self.B * self.ref_velocity + self.Fv * np.sign(self.ref_velocity)
+        self.control = self.Kp * (self.ref_position - q) + self.Kd * (self.ref_velocity - qv) + self.B * self.ref_velocity + self.Fv * np.sign(self.ref_velocity)
         self.control = np.clip(self.control, -self.max_control, self.max_control)
         return t >= self.transition_end
     
