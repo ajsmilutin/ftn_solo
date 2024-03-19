@@ -22,6 +22,7 @@ from robot_properties_solo.robot_resources import Resources
 from ftn_solo.controllers.controller_ident import ControllerIdent
 from ftn_solo.controllers.controller_test import ControllerTest
 
+
 def RPY2Quat(rpy):
     q1 = np.ndarray((4,), dtype=np.float64)
     q2 = np.ndarray((4,), dtype=np.float64)
@@ -38,7 +39,7 @@ class Connector():
     def __init__(self, robot_version, logger, *args, **kwargs) -> None:
         self.resources = Resources(robot_version)
         self.logger = logger
-        
+
     def init_controller(self, controller, num_of_joints):
         if controller == 'ident':
             self.controller = ControllerIdent(num_of_joints)
@@ -65,7 +66,6 @@ class RobotConnector(Connector):
         self.robot.initialize(np.array([0]*self.robot.joints.number_motors))
         self.running = True
         self.init_controller(controller, self.robot.joints.number_motors)
-        
 
     def get_data(self):
         self.robot.parse_sensor_data()
@@ -119,11 +119,9 @@ class PybulletConnector(Connector):
             pybullet.VELOCITY_CONTROL,
             forces=np.zeros(len(self.joint_ids)),
         )
-        
+
         self.init_controller(controller, len(self.joint_ids))
         self.controller.dT = self.env.dt
-        
-        
 
     def get_data(self):
         q = np.empty(len(self.joint_ids))
@@ -214,7 +212,8 @@ class ConnectorNode(Node):
     def __init__(self):
         super().__init__("first_node")
         self.declare_parameter('hardware', rclpy.Parameter.Type.STRING)
-        hardware = self.get_parameter('hardware').get_parameter_value().string_value
+        hardware = self.get_parameter(
+            'hardware').get_parameter_value().string_value
         self.time_publisher = None
         if hardware.lower() != "robot":
             self.time_publisher = self.create_publisher(Clock, "/clock", 10)
@@ -252,10 +251,12 @@ class ConnectorNode(Node):
                 self.connector = PybulletConnector(
                     robot_version, self.get_logger(), controller=controller, fixed=fixed, pos=pos, rpy=rpy)
         else:
-            self.connector = RobotConnector(robot_version,  self.get_logger(), controller=controller)
+            self.connector = RobotConnector(
+                robot_version,  self.get_logger(), controller=controller)
 
     def log_data(self, t, torques, position, velocity):
-        controller = self.get_parameter('controller').get_parameter_value().string_value
+        controller = self.get_parameter(
+            'controller').get_parameter_value().string_value
         row = [0.0] * (2 + 3 * self.connector.controller.joints_num)
         if controller == 'ident':
             states = ['move_knee', 'move_hip', 'rotate_hip']
@@ -278,7 +279,7 @@ class ConnectorNode(Node):
         end_index += self.connector.controller.joints_num
         row[start_index:end_index] = velocity.tolist()
         self.log_file.writerow(row)
-    
+
     def run(self):
         c = 0
         start = self.get_clock().now()
@@ -290,7 +291,8 @@ class ConnectorNode(Node):
             else:
                 elapsed = (self.get_clock().now() - start).nanoseconds / 1e9
 
-            torques = self.connector.controller.compute_control(elapsed, position, velocity)
+            torques = self.connector.controller.compute_control(
+                elapsed, position, velocity)
             self.connector.set_torques(torques)
             self.log_data(elapsed, torques, position, velocity)
             if self.connector.step():
@@ -305,11 +307,12 @@ class ConnectorNode(Node):
                         joint_state.header.stamp = self.clock.clock
                     else:
                         joint_state.header.stamp = self.get_clock().now().to_msg()
-                    joint_state.position = position.tolist() +[0.0,0.0,0.0,0.0, 0.0, 0.0,0.0, 0.0]
-                    joint_state.velocity = velocity.tolist()+[0.0,0.0,0.0,0.0, 0.0, 0.0,0.0, 0.0]
+                    joint_state.position = position.tolist(
+                    ) + [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+                    joint_state.velocity = velocity.tolist(
+                    )+[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
                     joint_state.name = self.connector.joint_names
                     self.join_state_pub.publish(joint_state)
-
 
 
 def main(args=None):

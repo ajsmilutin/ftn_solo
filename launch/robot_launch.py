@@ -58,7 +58,9 @@ def launch_setup(context, *args, **kwargs):
                     "start_paused": start_paused,
                     "pos": pos,
                     "rpy": rpy,
-                         'controller': controller}]
+                    'controller': controller
+                }
+            ],
         ),
     ]
 
