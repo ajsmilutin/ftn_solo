@@ -35,6 +35,16 @@ class Connector():
     def __init__(self, robot_version, logger, *args, **kwargs) -> None:
         self.resources = Resources(robot_version)
         self.logger = logger
+        
+    def init_controller(self, controller, num_of_joints):
+        if controller == 'ident':
+            self.controller = ControllerIdent(num_of_joints)
+        elif controller == 'test_comp':
+            self.controller = ControllerTest(num_of_joints, True)
+        elif controller == 'test_no_comp':
+            self.controller = ControllerTest(num_of_joints, False)
+        else:
+            self.logger.error('Unknown controller selected!!!')
 
 
 class RobotConnector(Connector):
@@ -51,15 +61,8 @@ class RobotConnector(Connector):
         self.robot = oci.robot_from_yaml_file(self.resources.config_path)
         self.robot.initialize(np.array([0]*self.robot.joints.number_motors))
         self.running = True
-        if controller == 'ident':
-            self.controller = ControllerIdent(self.robot.joints.number_motors)
-        elif controller == 'test_comp':
-            self.controller = ControllerTest(self.robot.joints.number_motors, True)
-        elif controller == 'test_no_comp':
-            self.controller = ControllerTest(self.robot.joints.number_motors, False)
-        else:
-            self.logger.error('Unknown controller selected!!! Switching to Ident controller!')
-            self.controller = ControllerIdent(self.robot.joints.number_motors)
+        self.init_controller(controller, self.robot.joints.number_motors)
+        
 
     def get_data(self):
         self.robot.parse_sensor_data()
@@ -77,7 +80,7 @@ class RobotConnector(Connector):
 
 
 class PybulletConnector(Connector):
-    def __init__(self, robot_version, logger, fixed=False, pos=[0, 0, 0.4], rpy=[0.0, 0.0, 0.0], *args, **kwargs) -> None:
+    def __init__(self, robot_version, logger, controller, fixed=False, pos=[0, 0, 0.4], rpy=[0.0, 0.0, 0.0], *args, **kwargs) -> None:
         super().__init__(robot_version, logger)
 
         self.env = BulletEnvWithGround(robot_version)
@@ -113,6 +116,11 @@ class PybulletConnector(Connector):
             pybullet.VELOCITY_CONTROL,
             forces=np.zeros(len(self.joint_ids)),
         )
+        
+        self.init_controller(controller, len(self.joint_ids))
+        self.controller.dT = self.env.dt
+        
+        
 
     def get_data(self):
         q = np.empty(len(self.joint_ids))
@@ -163,15 +171,7 @@ class MujocoConnector(Connector):
         self.viewer = None
         self.running = True
         self.nanoseconds = int(self.model.opt.timestep*1e9)
-        if controller == 'ident':
-            self.controller = ControllerIdent(self.model.nu)
-        elif controller == 'test_comp':
-            self.controller = ControllerTest(self.model.nu, True)
-        elif controller == 'test_no_comp':
-            self.controller = ControllerTest(self.model.nu, False)
-        else:
-            self.logger.error('Unknown controller selected!!! Switching to Ident controller!')
-            self.controller = ControllerIdent(self.model.nu)
+        self.init_controller(controller, self.model.nu)
         self.controller.dT = self.model.opt.timestep
         if self.use_gui:
             self.viewer = mujoco.viewer.launch_passive(
@@ -229,6 +229,8 @@ class ConnectorNode(Node):
             JointState, "/joint_states", 10)
         robot_version = self.get_parameter(
             'robot_version').get_parameter_value().string_value
+        controller = self.get_parameter(
+            'controller').get_parameter_value().string_value
         if hardware.lower() != "robot":
             use_gui = self.get_parameter(
                 'use_gui').get_parameter_value().bool_value
@@ -241,11 +243,11 @@ class ConnectorNode(Node):
             rpy = self.get_parameter(
                 'rpy').get_parameter_value().double_array_value
             if hardware.lower() == 'mujoco':
-            self.connector = MujocoConnector(robot_version, self.get_logger(), controller=controller,
-                                             use_gui=use_gui, start_paused=start_paused, fixed=fixed, pos=pos, rpy=rpy)
+                self.connector = MujocoConnector(robot_version, self.get_logger(), controller=controller,
+                                                 use_gui=use_gui, start_paused=start_paused, fixed=fixed, pos=pos, rpy=rpy)
             elif hardware.lower() == 'pybullet':
                 self.connector = PybulletConnector(
-                    robot_version, self.get_logger(), fixed=fixed, pos=pos, rpy=rpy)
+                    robot_version, self.get_logger(), controller=controller, fixed=fixed, pos=pos, rpy=rpy)
         else:
             self.connector = RobotConnector(robot_version,  self.get_logger(), controller=controller)
 
