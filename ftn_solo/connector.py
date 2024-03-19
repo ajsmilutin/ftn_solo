@@ -81,20 +81,21 @@ class PybulletConnector(Connector):
         self.joint_names = []
         self.joint_ids = []
         self.end_effector_ids = []
-        self.touch_sensors = ['fl','fr','hl','hr']
+        self.touch_sensors = ['fl', 'fr', 'hl', 'hr']
+        self.end_effector_names=['FR_ANKLE','FL_ANKLE','HR_ANKLE','HL_ANKLE']
         self.reading = {}
         self.running = True
         self.rot_base_to_imu = np.identity(3)
         self.r_base_to_imu = np.array([0.10407, -0.00635, 0.01540])
 
         for ji in range(pybullet.getNumJoints(self.robot_id)):
-            if pybullet.JOINT_FIXED != pybullet.getJointInfo(self.robot_id, ji)[2]:
-                self.joint_names.append(pybullet.getJointInfo(
-                    self.robot_id, ji)[1].decode("UTF-8"))
-                self.joint_ids.append(
-                    pybullet.getJointInfo(self.robot_id, ji)[0])
-            else:
+            if pybullet.getJointInfo(self.robot_id, ji)[1].decode("UTF-8") in self.end_effector_names:
                 self.end_effector_ids.append(
+                    pybullet.getJointInfo(self.robot_id, ji)[0]-1)
+            else:
+                self.joint_names.append(
+                    pybullet.getJointInfo(self.robot_id, ji)[1].decode("UTF-8"))
+                self.joint_ids.append(
                     pybullet.getJointInfo(self.robot_id, ji)[0])
 
         pybullet.setJointMotorControlArray(
@@ -115,20 +116,17 @@ class PybulletConnector(Connector):
             dq[i] = joint_states[i][1]
 
         return q, dq
-    
+
     def contact_sensors(self):
 
-        self.reading = {name: False for name in self.touch_sensors}
-        cp = pybullet.getContactPoints(self.robot_id)
+        contact_points = pybullet.getContactPoints(self.robot_id)
+        bodies_in_contact = set()
 
-        for j, name in enumerate(self.touch_sensors):
-            for ci in cp:
-                if ci[3] in self.end_effector_ids:
-                    i = np.where(np.array(self.end_effector_ids)
-                                 == ci[3])[0][0]
-                    if i == j:
-                        self.reading[name] = True
-                        continue
+        for contact_info in contact_points:
+            bodies_in_contact.add(contact_info[3])
+
+        self.reading = {name: self.end_effector_ids[j] in bodies_in_contact for j, name in enumerate(
+            self.touch_sensors)}
 
         return self.reading
 
