@@ -11,13 +11,16 @@ from sensor_msgs.msg import JointState
 import numpy as np
 from rosgraph_msgs.msg import Clock
 import time
+import csv
+from robot_properties_solo.robot_resources import Resources
+from ftn_solo.controllers.controller_ident import ControllerIdent
+from ftn_solo.controllers.controller_test import ControllerTest
 import math
 import yaml
 import csv
 from robot_properties_solo.robot_resources import Resources
 from ftn_solo.controllers.controller_ident import ControllerIdent
 from ftn_solo.controllers.controller_test import ControllerTest
-
 
 def RPY2Quat(rpy):
     q1 = np.ndarray((4,), dtype=np.float64)
@@ -302,10 +305,11 @@ class ConnectorNode(Node):
                         joint_state.header.stamp = self.clock.clock
                     else:
                         joint_state.header.stamp = self.get_clock().now().to_msg()
-                    joint_state.position = position.tolist()
-                    joint_state.velocity = velocity.tolist()
+                    joint_state.position = position.tolist() +[0.0,0.0,0.0,0.0, 0.0, 0.0,0.0, 0.0]
+                    joint_state.velocity = velocity.tolist()+[0.0,0.0,0.0,0.0, 0.0, 0.0,0.0, 0.0]
                     joint_state.name = self.connector.joint_names
                     self.join_state_pub.publish(joint_state)
+
 
 
 def main(args=None):
