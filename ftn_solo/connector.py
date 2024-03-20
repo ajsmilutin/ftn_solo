@@ -107,15 +107,6 @@ class PybulletConnector(SimulationConnector):
             flags=pybullet.URDF_USE_INERTIA_FROM_FILE,
             useFixedBase=fixed,
         )
-        if controller == 'ident':
-            self.controller = ControllerIdent(self.model.nu)
-        elif controller == 'test_comp':
-            self.controller = ControllerTest(self.model.nu, True)
-        elif controller == 'test_no_comp':
-            self.controller = ControllerTest(self.model.nu, False)
-        else:
-            self.logger.error('Unknown controller selected!!! Switching to Ident controller!')
-            self.controller = ControllerIdent(self.model.nu)
 
         self.joint_names = []
         self.joint_ids = []
@@ -144,6 +135,15 @@ class PybulletConnector(SimulationConnector):
             pybullet.VELOCITY_CONTROL,
             forces=np.zeros(len(self.joint_ids)),
         )
+        if controller == 'ident':
+            self.controller = ControllerIdent(len(self.joint_ids))
+        elif controller == 'test_comp':
+            self.controller = ControllerTest(len(self.joint_ids), True)
+        elif controller == 'test_no_comp':
+            self.controller = ControllerTest(len(self.joint_ids), False)
+        else:
+            self.logger.error('Unknown controller selected!!! Switching to Ident controller!')
+            self.controller = ControllerIdent(len(self.joint_ids))
 
     def get_data(self):
         q = np.empty(len(self.joint_ids))

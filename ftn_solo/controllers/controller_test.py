@@ -8,8 +8,8 @@ class ControllerTest():
     move_duration = 5.0
     SIN_W = 2 * 3.14 * 0.5 # f = 0.5Hz
     prepare_duration = 1.0
-    Kp = 25.0 
-    Kd = 0.00725 
+    Kp = 8.0 
+    Kd = 0.05
     max_control = 1.8 # 0.025*8*9
     joint_sin_pos = np.array([0.5, 1.0, 1.57], dtype=np.float64)
     
