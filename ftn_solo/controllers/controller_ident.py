@@ -2,6 +2,7 @@ import numpy as np
 from transitions import Machine
 from scipy.signal import chirp
 from scipy.interpolate import CubicSpline
+import csv
 
 class ControllerIdent():
     states = ['start', 'move_knee', 'position_calf', 'move_hip', 'position_thigh','rotate_hip', 'return_to_start', 'idle']
@@ -32,6 +33,7 @@ class ControllerIdent():
         self.machine.on_enter_position_calf(self.calculate_trajectory)
         self.machine.on_enter_position_thigh(self.calculate_trajectory)
         self.machine.on_enter_return_to_start(self.calculate_return_trajectory)
+        self.machine.on_enter_idle(self.save_log)
 
         self.joints_num = num_of_joints
 
@@ -48,10 +50,12 @@ class ControllerIdent():
         self.chirp = chirp(self.chirp_t, self.chirp_F0, self.transition_end, self.chirp_F1, phi = phase)
         self.trajectory = CubicSpline
 
-        self.log = open("controller_log.txt", "w")
+        self.debug_log = open("controller_log.txt", "w")
+        self.log_rows = []
 
     def compute_control(self, t, q, qv):
         self.tick(t, q, qv)
+        self.log_data(t, q, qv)
         return self.control
 
     def prepare_start(self, t, q, qv):
@@ -80,7 +84,7 @@ class ControllerIdent():
             chirp_index = np.where(self.chirp_t >= t - self.transition_start)[0][0]
             control = self.chirp[chirp_index] * torque
         except:
-            self.log.write("Index out of range \n")
+            self.debug_log.write("Index out of range \n")
         self.control = self.Kp * (self.ref_position - q) + self.Kd * (-qv)
         while (index < self.joints_num):
             self.control[index] = control
@@ -100,7 +104,7 @@ class ControllerIdent():
             index += 3
             if (self.joints_num == 13) and (index >=6 and index <= 8):
                 index += 1
-        self.control = self.Kp * (self.ref_position - q) + self.Kd * (-qv) + self.B * self.ref_velocity + self.Fv * np.sign(self.ref_velocity)
+        self.control = self.Kp * (self.ref_position - q) + self.Kd * (self.ref_velocity - qv) + self.B * self.ref_velocity + self.Fv * np.sign(self.ref_velocity)
         self.control = np.clip(self.control, -self.max_control, self.max_control)
         return t >= self.transition_end
 
@@ -114,7 +118,7 @@ class ControllerIdent():
             index += 3
             if (self.joints_num == 13) and (index >=6 and index <= 8):
                 index += 1
-        self.control = self.Kp * (self.ref_position - q) + self.Kd * (-qv) + self.B * self.ref_velocity + self.Fv * np.sign(self.ref_velocity)
+        self.control = self.Kp * (self.ref_position - q) + self.Kd * (self.ref_velocity - qv) + self.B * self.ref_velocity + self.Fv * np.sign(self.ref_velocity)
         self.control = np.clip(self.control, -self.max_control, self.max_control)
         return t >= self.transition_end
 
@@ -155,7 +159,7 @@ class ControllerIdent():
     def go_to_start(self, t, q, qv):
         self.ref_position = self.trajectory(t)
         self.ref_velocity = self.trajectory(t, 1)
-        self.control = self.Kp * (self.ref_position - q) + self.Kd * (-qv) + self.B * self.ref_velocity + self.Fv * np.sign(self.ref_velocity)
+        self.control = self.Kp * (self.ref_position - q) + self.Kd * (self.ref_velocity - qv) + self.B * self.ref_velocity + self.Fv * np.sign(self.ref_velocity)
         self.control = np.clip(self.control, -self.max_control, self.max_control)
         return t >= self.transition_end
 
@@ -163,3 +167,31 @@ class ControllerIdent():
         self.control = self.Kp * (self.ref_position - q) + self.Kd * (-qv)
         self.control = np.clip(self.control, -self.max_control, self.max_control)
         return False
+    
+    def log_data(self, t, q, qv):
+        row = [0.0] * (2 + 3 * self.joints_num)
+        states = [self.states[1], self.states[3], self.states[5]]
+        row[0] = 0.0
+        for i in range(3):
+            if self.machine.is_state(states[i], self):
+                row[0] = float(i+1)
+        if row[0] == 0.0:
+            return
+        row[1] = t
+        start_index = 2
+        end_index = self.joints_num + start_index
+        row[start_index:end_index] = self.control.tolist()
+        start_index = end_index
+        end_index += self.joints_num
+        row[start_index:end_index] = q.tolist()
+        start_index = end_index
+        end_index += self.joints_num
+        row[start_index:end_index] = qv.tolist()
+        self.log_rows.append(row)
+        
+    def save_log(self, t, q, qv):
+        with open("ident_log.csv", "w") as log_file:
+            log_csv = csv.writer(log_file)
+            log_csv.writerows(self.log_rows)
+            self.log_rows.clear()
+        

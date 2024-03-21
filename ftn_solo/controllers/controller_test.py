@@ -2,6 +2,7 @@ import numpy as np
 from transitions import Machine
 from scipy.signal import chirp
 from scipy.interpolate import CubicSpline
+import csv
 
 class ControllerTest():
     states = ['start', 'first_test', 'return_to_start_1', 'second_test', 'return_to_start_2','third_test', 'return_to_start_3', 'idle']
@@ -12,6 +13,7 @@ class ControllerTest():
     Kd = 0.05
     max_control = 1.8 # 0.025*8*9
     joint_sin_pos = np.array([0.5, 1.0, 1.57], dtype=np.float64)
+    friction_velocity_cutoff = 0.1
     
     def __init__(self, num_of_joints, compensation) -> None:
         self.machine = Machine(model = self, states = ControllerTest.states, initial = 'start')
@@ -29,6 +31,7 @@ class ControllerTest():
         self.machine.on_enter_return_to_start_1(self.calculate_return_trajectory)
         self.machine.on_enter_return_to_start_2(self.calculate_return_trajectory)
         self.machine.on_enter_return_to_start_3(self.calculate_return_trajectory)
+        self.machine.on_enter_idle(self.save_log)
         
         self.joints_num = num_of_joints
         
@@ -46,10 +49,12 @@ class ControllerTest():
         self.dT = 0.001
         self.trajectory = CubicSpline
         
-        self.log = open("controller_log.txt", "w")
+        self.debug_log = open("controller_log.txt", "w")
+        self.log_rows = []
         
     def compute_control(self, t, q, qv):
         self.tick(t, q, qv)
+        self.log_data(t, q, qv)
         return self.control
     
     def prepare_start(self, t, q, qv):
@@ -71,7 +76,7 @@ class ControllerTest():
         position = np.tile(self.joint_sin_pos, (self.joints_num // 3))
         velocity = np.tile(self.joint_sin_pos, (self.joints_num // 3))
         position = np.sin(self.SIN_W * factor * (t - self.transition_start)) * position
-        velocity = np.sin(self.SIN_W * factor * (t - self.transition_start)) * velocity
+        velocity = np.cos(self.SIN_W * factor * (t - self.transition_start)) * velocity * factor * self.SIN_W
         if self.joints_num == 13:
             self.ref_position[:6] = position
             self.ref_velocity[:6] = velocity
@@ -80,7 +85,8 @@ class ControllerTest():
         else:
             self.ref_position = position
             self.ref_velocity = velocity
-        self.control = self.Kp * (self.ref_position - q) + self.Kd * (-qv) + self.B * self.ref_velocity + self.Fv * np.sign(self.ref_velocity)
+        friction_velocity = np.where(abs(self.ref_velocity) > self.friction_velocity_cutoff, self.ref_velocity, 0)
+        self.control = self.Kp * (self.ref_position - q) + self.Kd * (self.ref_velocity - qv) + self.B * friction_velocity + self.Fv * np.sign(friction_velocity)
         self.control = np.clip(self.control, -self.max_control, self.max_control)
         return t >= self.transition_end
 
@@ -96,14 +102,15 @@ class ControllerTest():
         elif self.machine.is_state('third_test', self):
             index = 0
         position = np.sin(self.SIN_W * (t - self.transition_start)) * self.joint_sin_pos[index]
-        velocity = np.cos(self.SIN_W * (t - self.transition_start)) * self.joint_sin_pos[index]
+        velocity = np.cos(self.SIN_W * (t - self.transition_start)) * self.joint_sin_pos[index] * self.SIN_W
         while (index < self.joints_num):
             self.ref_position[index] = position
             self.ref_velocity[index] = velocity
             index += 3
             if (self.joints_num == 13) and (index >=6 and index<= 8):
                 index +=1
-        self.control = self.Kp * (self.ref_position - q) + self.Kd * (-qv) + self.B * self.ref_velocity + self.Fv * np.sign(self.ref_velocity)
+        friction_velocity = np.where(abs(self.ref_velocity) > self.friction_velocity_cutoff, self.ref_velocity, 0)
+        self.control = self.Kp * (self.ref_position - q) + self.Kd * (self.ref_velocity - qv) + self.B * friction_velocity + self.Fv * np.sign(friction_velocity)
         self.control = np.clip(self.control, -self.max_control, self.max_control)
         return t >= self.transition_end
     
@@ -117,7 +124,8 @@ class ControllerTest():
             index += 3
             if (self.joints_num == 13) and (index >=6 and index <= 8):
                 index += 1
-        self.control = self.Kp * (self.ref_position - q) + self.Kd * (-qv) + self.B * self.ref_velocity + self.Fv * np.sign(self.ref_velocity)
+        friction_velocity = np.where(abs(self.ref_velocity) > self.friction_velocity_cutoff, self.ref_velocity, 0)
+        self.control = self.Kp * (self.ref_position - q) + self.Kd * (self.ref_velocity - qv) + self.B * friction_velocity + self.Fv * np.sign(friction_velocity)
         self.control = np.clip(self.control, -self.max_control, self.max_control)
         return t >= self.transition_end
     
@@ -131,7 +139,8 @@ class ControllerTest():
             index += 3
             if (self.joints_num == 13) and (index >=6 and index <= 8):
                 index += 1
-        self.control = self.Kp * (self.ref_position - q) + self.Kd * (-qv) + self.B * self.ref_velocity + self.Fv * np.sign(self.ref_velocity)
+        friction_velocity = np.where(abs(self.ref_velocity) > self.friction_velocity_cutoff, self.ref_velocity, 0)
+        self.control = self.Kp * (self.ref_position - q) + self.Kd * (self.ref_velocity - qv) + self.B * friction_velocity + self.Fv * np.sign(friction_velocity)
         self.control = np.clip(self.control, -self.max_control, self.max_control)
         return t >= self.transition_end
     
@@ -172,7 +181,8 @@ class ControllerTest():
     def go_to_start(self, t, q, qv):
         self.ref_position = self.trajectory(t)
         self.ref_velocity = self.trajectory(t, 1)
-        self.control = self.Kp * (self.ref_position - q) + self.Kd * (-qv) + self.B * self.ref_velocity + self.Fv * np.sign(self.ref_velocity)
+        friction_velocity = np.where(abs(self.ref_velocity) > self.friction_velocity_cutoff, self.ref_velocity, 0)
+        self.control = self.Kp * (self.ref_position - q) + self.Kd * (self.ref_velocity - qv) + self.B * friction_velocity + self.Fv * np.sign(friction_velocity)
         self.control = np.clip(self.control, -self.max_control, self.max_control)
         return t >= self.transition_end
     
@@ -180,3 +190,30 @@ class ControllerTest():
         self.control = self.Kp * (self.ref_position - q) + self.Kd * (-qv)
         self.control = np.clip(self.control, -self.max_control, self.max_control)
         return False
+    
+    def log_data(self, t, q, qv):
+        row = [0.0] * (2 + 3 * self.joints_num)
+        states = [self.states[1], self.states[3], self.states[5]]
+        row[0] = 0.0
+        for i in range(3):
+            if self.machine.is_state(states[i], self):
+                row[0] = float(i+1)
+        if row[0] == 0.0:
+            return
+        row[1] = t
+        start_index = 2
+        end_index = self.joints_num + start_index
+        row[start_index:end_index] = self.control.tolist()
+        start_index = end_index
+        end_index += self.joints_num
+        row[start_index:end_index] = q.tolist()
+        start_index = end_index
+        end_index += self.joints_num
+        row[start_index:end_index] = qv.tolist()
+        self.log_rows.append(row)
+        
+    def save_log(self, t, q, qv):
+        with open("test_log.csv", "w") as log_file:
+            log_csv = csv.writer(log_file)
+            log_csv.writerows(self.log_rows)
+            self.log_rows.clear()
