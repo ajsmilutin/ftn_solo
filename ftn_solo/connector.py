@@ -92,7 +92,7 @@ class PybulletConnector(Connector):
             if pybullet.getJointInfo(self.robot_id, ji)[1].decode("UTF-8") in self.end_effector_names:
                 self.end_effector_ids.append(
                     pybullet.getJointInfo(self.robot_id, ji)[0]-1)
-            else:
+            elif pybullet.JOINT_FIXED != pybullet.getJointInfo(self.robot_id,ji)[2]:
                 self.joint_names.append(
                     pybullet.getJointInfo(self.robot_id, ji)[1].decode("UTF-8"))
                 self.joint_ids.append(
