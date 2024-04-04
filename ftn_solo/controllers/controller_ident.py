@@ -9,9 +9,9 @@ class ControllerIdent():
     chirp_duration = 5.0
     chirp_F0 = 0.4
     chirp_F1 = 0.8
-    prepare_duration = 1.0
+    prepare_duration = 2.0
     Kp = 8.0
-    Kd = 0.05
+    Kd = 0.1
     max_control = 1.8 # 0.025*8*9
     knee_torque = 0.25
     hip_torque = 0.25
@@ -59,7 +59,7 @@ class ControllerIdent():
         return self.control
 
     def prepare_start(self, t, q, qv):
-        self.control = self.ref_position
+        self.control = self.Kp * (self.ref_position - q) + self.Kd * (-qv)
         return t >= self.transition_end
 
     def prepare_move(self, t, q, qv):
@@ -71,6 +71,7 @@ class ControllerIdent():
         index = -1
         torque = 0.0
         control = 0.0
+        scale = [1.0, 1.0, 1.0, 0.75, 1.0, 1.0, 0.75, 1.0, 1.0, 1.5, 1.0, 1.0]
         if self.machine.is_state('move_knee', self):
             index = 2
             torque = self.knee_torque
@@ -87,7 +88,7 @@ class ControllerIdent():
             self.debug_log.write("Index out of range \n")
         self.control = self.Kp * (self.ref_position - q) + self.Kd * (-qv)
         while (index < self.joints_num):
-            self.control[index] = control
+            self.control[index] = control * scale[index]
             index += 3
             if (self.joints_num == 13) and (index >=6 and index<= 8):
                 index +=1
@@ -133,7 +134,7 @@ class ControllerIdent():
             end_position = 2.8
             index = 2
         elif self.machine.is_state('position_thigh', self):
-            end_position = 0
+            end_position = 0.5
             index = 1
         while (index < self.joints_num):
             q_points[:, i] = [q[index], end_position]

@@ -135,15 +135,6 @@ class PybulletConnector(SimulationConnector):
             pybullet.VELOCITY_CONTROL,
             forces=np.zeros(len(self.joint_ids)),
         )
-        if controller == 'ident':
-            self.controller = ControllerIdent(len(self.joint_ids))
-        elif controller == 'test_comp':
-            self.controller = ControllerTest(len(self.joint_ids), True)
-        elif controller == 'test_no_comp':
-            self.controller = ControllerTest(len(self.joint_ids), False)
-        else:
-            self.logger.error('Unknown controller selected!!! Switching to Ident controller!')
-            self.controller = ControllerIdent(len(self.joint_ids))
 
     def get_data(self):
         q = np.empty(len(self.joint_ids))
@@ -323,13 +314,13 @@ class ConnectorNode(Node):
             rpy = self.get_parameter(
                 'rpy').get_parameter_value().double_array_value
             if hardware.lower() == 'mujoco':
-                self.connector = MujocoConnector(robot_version, self.get_logger(),controller=controller,
+                self.connector = MujocoConnector(robot_version, self.get_logger(),
                                                  use_gui=use_gui, start_paused=start_paused, fixed=fixed, pos=pos, rpy=rpy)
             elif hardware.lower() == 'pybullet':
                 self.connector = PybulletConnector(
-                    robot_version, self.get_logger(),controller=controller, fixed=fixed, pos=pos, rpy=rpy)
+                    robot_version, self.get_logger(), fixed=fixed, pos=pos, rpy=rpy)
         else:
-            self.connector = RobotConnector(robot_version,  self.get_logger(), controller=controller)
+            self.connector = RobotConnector(robot_version,  self.get_logger())
 
         if task == 'joint_spline':
             self.task = TaskJointSpline(self.connector.num_joints(),

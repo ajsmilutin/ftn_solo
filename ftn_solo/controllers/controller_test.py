@@ -9,8 +9,8 @@ class ControllerTest():
     move_duration = 5.0
     SIN_W = 2 * 3.14 * 0.5 # f = 0.5Hz
     prepare_duration = 1.0
-    Kp = 8.0 
-    Kd = 0.05
+    Kp = 2.0 
+    Kd = 0.0125
     max_control = 1.8 # 0.025*8*9
     joint_sin_pos = np.array([0.5, 1.0, 1.57], dtype=np.float64)
     friction_velocity_cutoff = 0.1
@@ -39,8 +39,8 @@ class ControllerTest():
         self.ref_position = np.array([0.0] * self.joints_num, dtype=np.float64)
         self.ref_velocity = np.array([0.0] * self.joints_num, dtype=np.float64)
         if compensation:
-            self.B = np.array([2.05205114e-02, 2.17915586e-02, 2.29703418e-02] * (self.joints_num // 3), dtype=np.float64)
-            self.Fv = np.array([8.81394325e-02, 8.67753849e-02, 1.18672339e-01] * (self.joints_num // 3), dtype=np.float64)
+            self.B = np.array([0.02545695, 0.01706673, 0.01926639, 0.02819381, 0.02029258, 0.01606315, 0.01687575, 0.01313175, 0.01549928, 0.02191509, 0.01881964,0.01744183 ], dtype=np.float64)
+            self.Fv = np.array([0.06743854, 0.09737804, 0.1287155, 0.04454953, 0.12968497, 0.09906573, 0.05082791, 0.09970842, 0.09362089, 0.15870984, 0.08582857, 0.08365718], dtype=np.float64)
         else:
             self.B = np.zeros(self.joints_num, dtype=np.float64)
             self.Fv = np.zeros(self.joints_num, dtype=np.float64)
@@ -49,7 +49,6 @@ class ControllerTest():
         self.dT = 0.001
         self.trajectory = CubicSpline
         
-        self.debug_log = open("controller_log.txt", "w")
         self.log_rows = []
         
     def compute_control(self, t, q, qv):
@@ -58,7 +57,8 @@ class ControllerTest():
         return self.control
     
     def prepare_start(self, t, q, qv):
-        self.control = self.ref_position
+        self.control = self.Kp * (self.ref_position - q) + self.Kd * (-qv) + self.B * self.ref_velocity + self.Fv * np.sign(self.ref_velocity)
+        self.control = np.clip(self.control, -self.max_control, self.max_control)
         return t >= self.transition_end
     
     def prepare_move(self, t, q, qv):
@@ -86,11 +86,11 @@ class ControllerTest():
             self.ref_position = position
             self.ref_velocity = velocity
         friction_velocity = np.where(abs(self.ref_velocity) > self.friction_velocity_cutoff, self.ref_velocity, 0)
-        self.control = self.Kp * (self.ref_position - q) + self.Kd * (self.ref_velocity - qv) + self.B * friction_velocity + self.Fv * np.sign(friction_velocity)
+        self.control = self.Kp * (self.ref_position - q) + self.Kd * (self.ref_velocity - qv) + self.B * self.ref_velocity + self.Fv * np.sign(friction_velocity)
         self.control = np.clip(self.control, -self.max_control, self.max_control)
         return t >= self.transition_end
 
-        
+
     def move_joint(self, t, q, qv):
         index = -1
         position = 0.0
@@ -110,10 +110,10 @@ class ControllerTest():
             if (self.joints_num == 13) and (index >=6 and index<= 8):
                 index +=1
         friction_velocity = np.where(abs(self.ref_velocity) > self.friction_velocity_cutoff, self.ref_velocity, 0)
-        self.control = self.Kp * (self.ref_position - q) + self.Kd * (self.ref_velocity - qv) + self.B * friction_velocity + self.Fv * np.sign(friction_velocity)
+        self.control = self.Kp * (self.ref_position - q) + self.Kd * (self.ref_velocity - qv) + self.B * self.ref_velocity  + self.Fv * np.sign(friction_velocity)
         self.control = np.clip(self.control, -self.max_control, self.max_control)
         return t >= self.transition_end
-    
+
     def prepare_calf(self, t, q, qv):
         index = 2
         i = 0
@@ -125,7 +125,7 @@ class ControllerTest():
             if (self.joints_num == 13) and (index >=6 and index <= 8):
                 index += 1
         friction_velocity = np.where(abs(self.ref_velocity) > self.friction_velocity_cutoff, self.ref_velocity, 0)
-        self.control = self.Kp * (self.ref_position - q) + self.Kd * (self.ref_velocity - qv) + self.B * friction_velocity + self.Fv * np.sign(friction_velocity)
+        self.control = self.Kp * (self.ref_position - q) + self.Kd * (self.ref_velocity - qv) + self.B * self.ref_velocity + self.Fv * np.sign(friction_velocity)
         self.control = np.clip(self.control, -self.max_control, self.max_control)
         return t >= self.transition_end
     
@@ -140,7 +140,7 @@ class ControllerTest():
             if (self.joints_num == 13) and (index >=6 and index <= 8):
                 index += 1
         friction_velocity = np.where(abs(self.ref_velocity) > self.friction_velocity_cutoff, self.ref_velocity, 0)
-        self.control = self.Kp * (self.ref_position - q) + self.Kd * (self.ref_velocity - qv) + self.B * friction_velocity + self.Fv * np.sign(friction_velocity)
+        self.control = self.Kp * (self.ref_position - q) + self.Kd * (self.ref_velocity - qv) + self.B * self.ref_velocity + self.Fv * np.sign(friction_velocity)
         self.control = np.clip(self.control, -self.max_control, self.max_control)
         return t >= self.transition_end
     
@@ -182,15 +182,15 @@ class ControllerTest():
         self.ref_position = self.trajectory(t)
         self.ref_velocity = self.trajectory(t, 1)
         friction_velocity = np.where(abs(self.ref_velocity) > self.friction_velocity_cutoff, self.ref_velocity, 0)
-        self.control = self.Kp * (self.ref_position - q) + self.Kd * (self.ref_velocity - qv) + self.B * friction_velocity + self.Fv * np.sign(friction_velocity)
+        self.control = self.Kp * (self.ref_position - q) + self.Kd * (self.ref_velocity - qv) + self.B * self.ref_velocity + self.Fv * np.sign(friction_velocity)
         self.control = np.clip(self.control, -self.max_control, self.max_control)
         return t >= self.transition_end
-    
+
     def do_nothing(self, t, q, qv):
         self.control = self.Kp * (self.ref_position - q) + self.Kd * (-qv)
         self.control = np.clip(self.control, -self.max_control, self.max_control)
         return False
-    
+
     def log_data(self, t, q, qv):
         row = [0.0] * (2 + 3 * self.joints_num)
         states = [self.states[1], self.states[3], self.states[5]]
