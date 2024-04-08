@@ -11,9 +11,10 @@ def launch_setup(context, *args, **kwargs):
     robot_version = LaunchConfiguration("robot_version", default="solo12")
     hardware = LaunchConfiguration("hardware", default="robot")
     fixed = LaunchConfiguration("fixed", default="False")
-    start_paused = LaunchConfiguration("start_paused", default="False")
     pos = LaunchConfiguration("pos", default="[0.0, 0.0, 0.4]")
+    start_paused = LaunchConfiguration("start_paused", default="False")
     rpy = LaunchConfiguration("rpy", default="[0.0, 0.0, 0.0]")
+    controller = LaunchConfiguration('controller', default='ident')
     robot_version_value = robot_version.perform(context)
     hardware = hardware.perform(context)
     use_sim_time = hardware.lower() != "robot"
@@ -57,6 +58,7 @@ def launch_setup(context, *args, **kwargs):
                     "start_paused": start_paused,
                     "pos": pos,
                     "rpy": rpy,
+                    'controller': controller
                 }
             ],
         ),
