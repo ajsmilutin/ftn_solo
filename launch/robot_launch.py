@@ -14,8 +14,14 @@ def launch_setup(context, *args, **kwargs):
     start_paused = LaunchConfiguration("start_paused", default="False")
     pos = LaunchConfiguration("pos", default="[0.0, 0.0, 0.4]")
     rpy = LaunchConfiguration("rpy", default="[0.0, 0.0, 0.0]")
+    task = LaunchConfiguration('task', default='joint_spline')
+    config = LaunchConfiguration('config', default='eurobot_demo.yaml')
     robot_version_value = robot_version.perform(context)
     hardware = hardware.perform(context)
+    config = config.perform(context)
+    if not os.path.isfile(config):
+        config = os.path.join(get_package_share_directory("ftn_solo"), "config", "tasks", config)
+
     use_sim_time = hardware.lower() != "robot"
     resources = Resources(robot_version_value)
     with open(resources.urdf_path, "r") as infp:
@@ -57,8 +63,11 @@ def launch_setup(context, *args, **kwargs):
                     "start_paused": start_paused,
                     "pos": pos,
                     "rpy": rpy,
+                    "task": task,
+                    "config": config
                 }
             ],
+            output="log"
         ),
     ]
 
@@ -74,7 +83,7 @@ def generate_launch_description():
             DeclareLaunchArgument(
                 "hardware",
                 default_value="robot",
-                description="Use 'robot' to launch real robot, use pybullet or mujoco for simulation",
+                description="Use 'robot' to launch real robot, use 'pybullet' or 'mujoco' for simulation",
             ),
             OpaqueFunction(function=launch_setup),
         ]
