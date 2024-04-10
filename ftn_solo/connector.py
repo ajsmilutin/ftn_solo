@@ -12,7 +12,10 @@ from rosgraph_msgs.msg import Clock
 import time
 import math
 import yaml
-from robot_properties_solo.robot_resources import Resources
+from robot_properties_solo import Resources
+from ftn_solo.tasks import *
+from tf2_ros import TransformBroadcaster
+from geometry_msgs.msg import TransformStamped
 
 
 def RPY2Quat(rpy):
@@ -35,9 +38,9 @@ class Connector():
 
 class RobotConnector(Connector):
     def __init__(self, robot_version, logger, *args, **kwargs) -> None:
-        super().__init__(robot_version, logger, *args, **kwargs)
         import libodri_control_interface_pywrap as oci
-        self.running = True
+
+        super().__init__(robot_version, logger, *args, **kwargs)
         with open(self.resources.config_path, 'r') as stream:
             try:
                 data = yaml.safe_load(stream)
@@ -45,7 +48,11 @@ class RobotConnector(Connector):
             except Exception as exc:
                 raise exc
         self.robot = oci.robot_from_yaml_file(self.resources.config_path)
-        self.robot.initialize(np.array([0]*self.robot.joints.number_motors))
+        self.robot.initialize(
+            np.array([0]*self.robot.joints.number_motors, dtype=np.float64))
+        self.running = True
+        self.dT = 0.001
+        self.nanoseconds = self.dT*1e9
 
     def get_data(self):
         self.robot.parse_sensor_data()
@@ -55,11 +62,22 @@ class RobotConnector(Connector):
         self.robot.joints.set_torques(torques)
 
     def is_running(self):
-        return self.running
+        if self.robot.has_error:
+            self.logger.error("I HAVE ERROR")
+        if self.robot.is_timeout:
+            self.logger.error("I HAVE timeout")
+        return not (self.robot.has_error)
 
     def step(self):
-        self.robot.send_command_and_wait_end_of_cycle(0.001)
+        self.robot.send_command_and_wait_end_of_cycle(self.dT)
         return True
+
+    def num_joints(self):
+        return self.robot.joints.number_motors
+
+    def get_sensor_readings(self):
+        q = self.robot.imu.attitude_quaternion
+        return {"attitude": [q[3], q[0], q[1], q[2]]}
 
 
 class PybulletConnector(Connector):
@@ -82,7 +100,8 @@ class PybulletConnector(Connector):
         self.joint_ids = []
         self.end_effector_ids = []
         self.touch_sensors = ['fl', 'fr', 'hl', 'hr']
-        self.end_effector_names=['FR_ANKLE','FL_ANKLE','HR_ANKLE','HL_ANKLE']
+        self.end_effector_names = ['FR_ANKLE',
+                                   'FL_ANKLE', 'HR_ANKLE', 'HL_ANKLE']
         self.reading = {}
         self.running = True
         self.rot_base_to_imu = np.identity(3)
@@ -92,7 +111,7 @@ class PybulletConnector(Connector):
             if pybullet.getJointInfo(self.robot_id, ji)[1].decode("UTF-8") in self.end_effector_names:
                 self.end_effector_ids.append(
                     pybullet.getJointInfo(self.robot_id, ji)[0]-1)
-            elif pybullet.JOINT_FIXED != pybullet.getJointInfo(self.robot_id,ji)[2]:
+            elif pybullet.JOINT_FIXED != pybullet.getJointInfo(self.robot_id, ji)[2]:
                 self.joint_names.append(
                     pybullet.getJointInfo(self.robot_id, ji)[1].decode("UTF-8"))
                 self.joint_ids.append(
@@ -118,7 +137,6 @@ class PybulletConnector(Connector):
         return q, dq
 
     def contact_sensors(self):
-
         contact_points = pybullet.getContactPoints(self.robot_id)
         bodies_in_contact = set()
 
@@ -131,7 +149,6 @@ class PybulletConnector(Connector):
         return self.reading
 
     def imu_sensor(self):
-
         base_inertia_pos, base_inertia_quat = pybullet.getBasePositionAndOrientation(
             self.robot_id
         )
@@ -147,18 +164,17 @@ class PybulletConnector(Connector):
             )
         )
 
-        return (
-            self.rot_base_to_imu.dot(
-                rot_base_to_world.T.dot(np.array(base_angvel)))
-        ), self.rot_base_to_imu.dot(
-            rot_base_to_world.T.dot(imu_linacc + np.array([0.0, 0.0, 9.81])))
+        return (base_inertia_quat,
+                self.rot_base_to_imu.dot(
+                    rot_base_to_world.T.dot(np.array(base_angvel))),
+                self.rot_base_to_imu.dot(
+                    rot_base_to_world.T.dot(imu_linacc + np.array([0.0, 0.0, 9.81]))))
 
-    def sensor_readings(self):
-
-        base_imu_angvel, base_imu_linacc = self.imu_sensor()
-        sensors = {"imu": (base_imu_angvel, base_imu_linacc),
-                   "touch": self.contact_sensors()}
-        return sensors
+    def get_sensor_readings(self):
+        q, gyro, accel = self.imu_sensor()
+        return {"attitude": [q[3], q[0], q[1], q[2]],
+                "imu": (gyro,
+                        accel), "touch": self.contact_sensors()}
 
     def set_torques(self, torques):
         pybullet.setJointMotorControlArray(
@@ -175,9 +191,12 @@ class PybulletConnector(Connector):
     def is_running(self):
         return self.running
 
+    def num_joints(self):
+        return len(self.joint_names)
+
 
 class MujocoConnector(Connector):
-    def __init__(self, robot_version, logger, use_gui=True, start_paused=False, fixed=False, pos=[0, 0, 0.4], rpy=[0.0, 0.0, 0.0], *args, **kwargs) -> None:
+    def __init__(self, robot_version, logger, use_gui=True, start_paused=False, fixed=False, pos=[0, 0, 0.4], rpy=[0.0, 0.0, 0.0]) -> None:
         super().__init__(robot_version, logger)
         self.model = mujoco.MjModel.from_xml_path(self.resources.mjcf_path)
         self.model.opt.timestep = 1e-3
@@ -187,6 +206,7 @@ class MujocoConnector(Connector):
         self.data.qpos[3:7] = RPY2Quat(rpy)
         logger.error(str(self.data.qpos))
         self.data.qpos[7:] = 0
+        self.data.qvel[:] = 0
         if fixed:
             self.model.body("base_link").jntnum = 0
         self.joint_names = [self.model.joint(
@@ -196,6 +216,7 @@ class MujocoConnector(Connector):
         self.viewer = None
         self.running = True
         self.nanoseconds = int(self.model.opt.timestep*1e9)
+        self.touch_sensors = ["fl", "fr", "hl", "hr"]
         if self.use_gui:
             self.viewer = mujoco.viewer.launch_passive(
                 self.model, self.data, show_right_ui=False, key_callback=self.key_callback)
@@ -208,6 +229,18 @@ class MujocoConnector(Connector):
 
     def get_data(self):
         return self.data.qpos[7:], self.data.qvel[6:]
+
+    def get_sensor_readings(self):
+        reading = {}
+        for sensor in self.touch_sensors:
+            name = sensor + "_touch"
+            reading[name] = self.data.sensor(name).data[0] > 0
+        # qw, qx, qy, qz
+        return {"attitude": self.data.sensor("attitude").data,
+                "imu": (self.data.sensor("angular-velocity").data,
+                        self.data.sensor("linear-acceleration").data,
+                        self.data.sensor("magnetometer").data),
+                "touch": reading}
 
     def set_torques(self, torques):
         self.data.ctrl = torques
@@ -229,6 +262,9 @@ class MujocoConnector(Connector):
             time.sleep(time_until_next_step)
         return True
 
+    def num_joints(self):
+        return self.model.nu
+
 
 class ConnectorNode(Node):
     def __init__(self):
@@ -246,10 +282,16 @@ class ConnectorNode(Node):
         self.declare_parameter('pos', [0.0, 0.0, 0.4])
         self.declare_parameter('rpy', [0.0, 0.0, 0.0])
         self.declare_parameter('robot_version', rclpy.Parameter.Type.STRING)
+        self.declare_parameter('task', rclpy.Parameter.Type.STRING)
+        self.declare_parameter('config', rclpy.Parameter.Type.STRING)
         self.join_state_pub = self.create_publisher(
             JointState, "/joint_states", 10)
+        self.tf_broadcaster = TransformBroadcaster(self)
         robot_version = self.get_parameter(
             'robot_version').get_parameter_value().string_value
+        task = self.get_parameter(
+            'task').get_parameter_value().string_value
+
         if hardware.lower() != "robot":
             use_gui = self.get_parameter(
                 'use_gui').get_parameter_value().bool_value
@@ -270,39 +312,60 @@ class ConnectorNode(Node):
         else:
             self.connector = RobotConnector(robot_version,  self.get_logger())
 
+        if task == 'joint_spline':
+            self.task = TaskJointSpline(self.connector.num_joints(),
+                robot_version, self.get_parameter('config').get_parameter_value().string_value)
+        else:
+            self.logger.error(
+                'Unknown task selected!!! Switching to joint_spline task!')
+            self.task = TaskJointSpline(
+                robot_version, "/home/ajsmilutin/solo/solo_ws/src/ftn_solo/config/controllers/eurobot_demo.yaml")
+        self.task.dT = self.connector.nanoseconds/1e9
+
     def run(self):
         c = 0
-        des_pos = np.array(
-            [0.0, 0, -1.57, 0, 0, -1.57, 0.3, 0.9, -1.57, -0.3, 0.9, -1.57])
         start = self.get_clock().now()
         joint_state = JointState()
+        transform = TransformStamped()
+        position, velocity = self.connector.get_data()
+        self.task.init_pose(position, velocity)
         while self.connector.is_running():
             position, velocity = self.connector.get_data()
+            sensors = self.connector.get_sensor_readings()
+            # self.get_logger().error(sensors)
             if self.time_publisher:
                 elapsed = self.clock.clock.sec + self.clock.clock.nanosec / 1e9
             else:
                 elapsed = (self.get_clock().now() - start).nanoseconds / 1e9
 
-            torques = 5 * (des_pos*0.5*(1-math.cos(5*elapsed)) - position) + \
-                0.00725 * (des_pos*0.5*math.sin(5*elapsed) - velocity)
-
+            torques = self.task.compute_control(
+                elapsed, position, velocity, sensors)
             self.connector.set_torques(torques)
-            if self.connector.step():
+            if self.time_publisher:
+                self.clock.clock.nanosec += self.connector.nanoseconds
+                self.clock.clock.sec += self.clock.clock.nanosec // 1000000000
+                self.clock.clock.nanosec = self.clock.clock.nanosec % 1000000000
+                self.time_publisher.publish(self.clock)
+            c += 1
+            if (c % 50 == 0):
                 if self.time_publisher:
-                    self.clock.clock.nanosec += self.connector.nanoseconds
-                    self.clock.clock.sec += self.clock.clock.nanosec // 1000000000
-                    self.clock.clock.nanosec = self.clock.clock.nanosec % 1000000000
-                    self.time_publisher.publish(self.clock)
-                c += 1
-                if (c % 50 == 0):
-                    if self.time_publisher:
-                        joint_state.header.stamp = self.clock.clock
-                    else:
-                        joint_state.header.stamp = self.get_clock().now().to_msg()
-                    joint_state.position = position.tolist()
-                    joint_state.velocity = velocity.tolist()
-                    joint_state.name = self.connector.joint_names
-                    self.join_state_pub.publish(joint_state)
+                    joint_state.header.stamp = self.clock.clock
+                else:
+                    joint_state.header.stamp = self.get_clock().now().to_msg()
+                joint_state.position = position.tolist()
+                joint_state.velocity = velocity.tolist()
+                joint_state.name = self.connector.joint_names
+                self.join_state_pub.publish(joint_state)
+                if "attitude" in sensors.keys():
+                    transform.header.stamp = joint_state.header.stamp
+                    transform.header.frame_id = "world"
+                    transform.child_frame_id = "base_link"
+                    transform.transform.rotation.w = sensors["attitude"][0]
+                    transform.transform.rotation.x = sensors["attitude"][1]
+                    transform.transform.rotation.y = sensors["attitude"][2]
+                    transform.transform.rotation.z = sensors["attitude"][3]
+                    self.tf_broadcaster.sendTransform(transform)
+            self.connector.step()
 
 
 def main(args=None):

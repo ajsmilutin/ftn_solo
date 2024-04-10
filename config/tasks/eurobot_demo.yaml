@@ -1,0 +1,76 @@
+poses:
+  zero_pose:
+    [ 0.0, 0.0, 0.0,
+      0.0, 0.0, 0.0,
+      0.0, 0.0, 0.0,
+      0.0, 0.0, 0.0]
+  initial_pose:
+    [ 0.0, 0.985, -1.57,
+      0.0, 0.985, -1.57,
+      0.0, -0.985, 1.57,
+      0.0, -0.985, 1.57]
+  upper_pose:
+    [ 0.0, 0.24, -0.45,
+      0.0, 0.24, -0.45,
+      0.0, -0.24, 0.45,
+      0.0, -0.24, 0.45]
+  fl_up:
+    [ 0.0, 1.2,   -2.5,
+      0.0, 0.485, -0.9,
+      0.0, -0.485, 0.9,
+      0.0, -1.2,   2.5]
+  fr_up:
+    [ 0.0, 0.485, -0.9,
+      0.0, 1.2,   -2.5,
+      0.0, -1.2,   2.5,
+      0.0, -0.485, 0.9,]
+  siting:
+    [ 0.0, 0.4, 0.0,
+      0.0, 0.4, 0.0,
+      0.0, -1.2, 2.5,
+      0.0, -1.2, 2.5]
+on_start:
+  poses: ["zero_pose"]
+  durations: [10.0]
+
+loop:
+  - poses: ["zero_pose", "initial_pose" ,"zero_pose", "initial_pose","zero_pose", "initial_pose"]
+    durations: [0.5, 1.0, 1.5, 2.0, 2.5, 3.0]
+  - poses: ["upper_pose"]
+    durations: [0.5]
+  - poses: ["fl_up", "upper_pose"]
+    durations: [0.15, 0.3]
+  - poses: ["fr_up", "upper_pose"]
+    durations: [0.15, 0.3]
+  - poses: ["fl_up", "upper_pose"]
+    durations: [0.15, 0.3]
+  - poses: ["fr_up", "upper_pose"]
+    durations: [0.2, 0.4]
+  - poses: ["fl_up", "upper_pose"]
+    durations: [0.15, 0.3]
+  - poses: ["fr_up", "upper_pose"]
+    durations: [0.15, 0.3]
+  - poses: ["zero_pose"]
+    durations: [0.5]
+  - poses: ["siting"]
+    durations: [1.0]
+  - poses: ["siting"]
+    durations: [5.0]
+  - poses: ["zero_pose"]
+    durations: [1.0]
+
+
+joint_controller:
+  Kp : 8.0
+  Kd : 0.05
+
+  B : [0.02545695, 0.01706673, 0.01926639,
+       0.02819381, 0.02029258, 0.01606315,
+       0.01687575, 0.01313175, 0.01549928,
+       0.02191509, 0.01881964, 0.01744183]
+  Fv: [0.06743854, 0.09737804, 0.1287155,
+       0.04454953, 0.12968497, 0.09906573,
+       0.05082791, 0.09970842, 0.09362089,
+       0.15870984, 0.08582857, 0.08365718]
+  friction_cutoff: 0.1
+  max_control: 1.8
