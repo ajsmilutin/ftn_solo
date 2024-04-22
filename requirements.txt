@@ -6,3 +6,4 @@ ahrs
 xacro
 pyyaml
 pybullet
+scipy
