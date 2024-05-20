@@ -1,5 +1,5 @@
 glfw == 2.6.2
-mujoco >= 3.0.0
+mujoco >= 3.1.5
 pin
 transitions
 ahrs
