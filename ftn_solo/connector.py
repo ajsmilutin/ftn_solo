@@ -18,36 +18,23 @@ from tf2_ros import TransformBroadcaster
 from geometry_msgs.msg import TransformStamped
 
 
-def RPY2Quat(rpy):
-    q1 = np.ndarray((4,), dtype=np.float64)
-    q2 = np.ndarray((4,), dtype=np.float64)
-    q3 = np.ndarray((4,), dtype=np.float64)
-    mujoco.mju_axisAngle2Quat(q1, [0, 0, 1], rpy[2])
-    mujoco.mju_axisAngle2Quat(q2, [0, 1, 0], rpy[1])
-    mujoco.mju_mulQuat(q3, q1, q2)
-    mujoco.mju_axisAngle2Quat(q2, [1, 0, 0], rpy[0])
-    mujoco.mju_mulQuat(q1, q3, q2)
-    return q1
-
-
 class Connector():
     def __init__(self, robot_version, logger, *args, **kwargs) -> None:
         self.resources = Resources(robot_version)
+        with open(self.resources.config_path, 'r') as stream:
+            try:
+                self.config = yaml.safe_load(stream)
+            except Exception as exc:
+                raise exc
         self.logger = logger
 
 
 class RobotConnector(Connector):
     def __init__(self, robot_version, logger, *args, **kwargs) -> None:
-        import libodri_control_interface_pywrap as oci
-
         super().__init__(robot_version, logger, *args, **kwargs)
-        with open(self.resources.config_path, 'r') as stream:
-            try:
-                data = yaml.safe_load(stream)
-                self.joint_names = data["robot"]["joint_modules"]["joint_names"]
-            except Exception as exc:
-                raise exc
+        import libodri_control_interface_pywrap as oci
         self.robot = oci.robot_from_yaml_file(self.resources.config_path)
+        self.joint_names = self.config["robot"]["joint_modules"]["joint_names"]
         self.robot.initialize(
             np.array([0]*self.robot.joints.number_motors, dtype=np.float64))
         self.running = True
@@ -63,9 +50,9 @@ class RobotConnector(Connector):
 
     def is_running(self):
         if self.robot.has_error:
-            self.logger.error("I HAVE ERROR")
+            self.logger.error("Error appeared")
         if self.robot.is_timeout:
-            self.logger.error("I HAVE timeout")
+            self.logger.error("Timeout happened with real robot")
         return not (self.robot.has_error)
 
     def step(self):
@@ -80,13 +67,38 @@ class RobotConnector(Connector):
         return {"attitude": [q[3], q[0], q[1], q[2]]}
 
 
-class PybulletConnector(Connector):
+class SimulationConnector(Connector):
+    def __init__(self, robot_version, logger, *args, **kwargs) -> None:
+        super().__init__(robot_version, logger, *args, **kwargs)
+
+        self.simulate_encoders = self.config.get(
+            "simulation") and self.config["simulation"].get("simulate_encoders", False)
+        if self.simulate_encoders:
+            self.resolution = 2*math.pi / \
+                self.config["robot"]["joint_modules"]["counts_per_revolution"] / \
+                self.config["robot"]["joint_modules"]["gear_ratios"]
+            self.old_q = None
+
+    def process_coordinates(self, q, qdot):
+        if not self.simulate_encoders:
+            return q, qdot
+        else:
+            q = np.round(q / self.resolution) * self.resolution
+            if self.old_q is None:
+                self.old_q = q
+                return q, 0*qdot
+            qdot = (q - self.old_q)/self.dt
+            self.old_q = q
+            return q, qdot
+
+
+class PybulletConnector(SimulationConnector):
     def __init__(self, robot_version, logger, fixed=False, pos=[0, 0, 0.4], rpy=[0.0, 0.0, 0.0], *args, **kwargs) -> None:
         super().__init__(robot_version, logger)
 
         self.env = BulletEnvWithGround(robot_version)
         orn = pybullet.getQuaternionFromEuler(rpy)
-        self.nanoseconds = int(self.env.dt*1e9)
+        self.dt = self.env.dt
         self.logger = logger
         self.robot_id = pybullet.loadURDF(
             self.resources.urdf_path,
@@ -134,7 +146,7 @@ class PybulletConnector(Connector):
             q[i] = joint_states[i][0]
             dq[i] = joint_states[i][1]
 
-        return q, dq
+        return self.process_coordinates(q, dq)
 
     def contact_sensors(self):
         contact_points = pybullet.getContactPoints(self.robot_id)
@@ -195,16 +207,14 @@ class PybulletConnector(Connector):
         return len(self.joint_names)
 
 
-class MujocoConnector(Connector):
+class MujocoConnector(SimulationConnector):
     def __init__(self, robot_version, logger, use_gui=True, start_paused=False, fixed=False, pos=[0, 0, 0.4], rpy=[0.0, 0.0, 0.0]) -> None:
         super().__init__(robot_version, logger)
         self.model = mujoco.MjModel.from_xml_path(self.resources.mjcf_path)
         self.model.opt.timestep = 1e-3
         self.data = mujoco.MjData(self.model)
         self.data.qpos[0:3] = pos
-        logger.error(str(rpy))
-        self.data.qpos[3:7] = RPY2Quat(rpy)
-        logger.error(str(self.data.qpos))
+        mujoco.mju_euler2Quat(self.data.qpos[3:7], rpy, "XYZ")
         self.data.qpos[7:] = 0
         self.data.qvel[:] = 0
         if fixed:
@@ -215,11 +225,11 @@ class MujocoConnector(Connector):
         self.use_gui = use_gui
         self.viewer = None
         self.running = True
-        self.nanoseconds = int(self.model.opt.timestep*1e9)
+        self.dt = self.model.opt.timestep
         self.touch_sensors = ["fl", "fr", "hl", "hr"]
         if self.use_gui:
             self.viewer = mujoco.viewer.launch_passive(
-                self.model, self.data, show_right_ui=False, key_callback=self.key_callback)
+                self.model, self.data, show_left_ui=False, show_right_ui=False, key_callback=self.key_callback)
 
     def key_callback(self, keycode):
         if chr(keycode) == ' ':
@@ -228,7 +238,7 @@ class MujocoConnector(Connector):
             self.running = False
 
     def get_data(self):
-        return self.data.qpos[7:], self.data.qvel[6:]
+        return self.process_coordinates(self.data.qpos[7:], self.data.qvel[6:])
 
     def get_sensor_readings(self):
         reading = {}
@@ -314,13 +324,13 @@ class ConnectorNode(Node):
 
         if task == 'joint_spline':
             self.task = TaskJointSpline(self.connector.num_joints(),
-                robot_version, self.get_parameter('config').get_parameter_value().string_value)
+                                        robot_version, self.get_parameter('config').get_parameter_value().string_value)
         else:
             self.logger.error(
                 'Unknown task selected!!! Switching to joint_spline task!')
             self.task = TaskJointSpline(
                 robot_version, "/home/ajsmilutin/solo/solo_ws/src/ftn_solo/config/controllers/eurobot_demo.yaml")
-        self.task.dT = self.connector.nanoseconds/1e9
+        self.task.dt = self.connector.dt
 
     def run(self):
         c = 0
@@ -332,7 +342,6 @@ class ConnectorNode(Node):
         while self.connector.is_running():
             position, velocity = self.connector.get_data()
             sensors = self.connector.get_sensor_readings()
-            # self.get_logger().error(sensors)
             if self.time_publisher:
                 elapsed = self.clock.clock.sec + self.clock.clock.nanosec / 1e9
             else:
@@ -342,7 +351,7 @@ class ConnectorNode(Node):
                 elapsed, position, velocity, sensors)
             self.connector.set_torques(torques)
             if self.time_publisher:
-                self.clock.clock.nanosec += self.connector.nanoseconds
+                self.clock.clock.nanosec += int(self.connector.dt * 1000000000)
                 self.clock.clock.sec += self.clock.clock.nanosec // 1000000000
                 self.clock.clock.nanosec = self.clock.clock.nanosec % 1000000000
                 self.time_publisher.publish(self.clock)
