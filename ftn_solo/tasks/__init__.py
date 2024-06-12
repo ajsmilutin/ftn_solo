@@ -1,1 +1,2 @@
 from .task_joint_spline import TaskJointSpline
+from .task_friction_ident import TaskFrictionIdent
