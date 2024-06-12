@@ -324,12 +324,15 @@ class ConnectorNode(Node):
 
         if task == 'joint_spline':
             self.task = TaskJointSpline(self.connector.num_joints(),
-                                        robot_version, self.get_parameter('config').get_parameter_value().string_value)
+                robot_version, self.get_parameter('config').get_parameter_value().string_value)
+        elif task == 'friction_ident':
+            self.task = TaskFrictionIdent(self.connector.num_joints(),
+                robot_version, self.get_parameter('config').get_parameter_value().string_value)
         else:
-            self.logger.error(
+            self.get_logger().error(
                 'Unknown task selected!!! Switching to joint_spline task!')
-            self.task = TaskJointSpline(
-                robot_version, "/home/ajsmilutin/solo/solo_ws/src/ftn_solo/config/controllers/eurobot_demo.yaml")
+            self.task = TaskJointSpline(self.connector.num_joints(),
+                robot_version, self.get_parameter('config').get_parameter_value().string_value)
         self.task.dt = self.connector.dt
 
     def run(self):
