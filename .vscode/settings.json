@@ -1,0 +1,25 @@
+{
+    "ros.distro": "humble",
+    "python.autoComplete.extraPaths": [
+        "/home/aleks/solo12_ftn/install/ftn_solo/lib/python3.10/site-packages",
+        "/home/aleks/solo12_ftn/install/robot_properties_solo/lib/python3.10/site-packages",
+        "/home/aleks/agv_gro/install/lely_core_libraries/local/lib/python3.10/dist-packages",
+        "/home/aleks/agv_gro/install/lely_core_libraries/lib/python3.10/site-packages",
+        "/home/aleks/agv_gro/install/canopen_utils/lib/python3.10/site-packages",
+        "/home/aleks/agv_gro/install/canopen_interfaces/local/lib/python3.10/dist-packages",
+        "/opt/ros/humble/lib/python3.10/site-packages",
+        "/opt/ros/humble/local/lib/python3.10/dist-packages",
+        ""
+    ],
+    "python.analysis.extraPaths": [
+        "/home/aleks/solo12_ftn/install/ftn_solo/lib/python3.10/site-packages",
+        "/home/aleks/solo12_ftn/install/robot_properties_solo/lib/python3.10/site-packages",
+        "/home/aleks/agv_gro/install/lely_core_libraries/local/lib/python3.10/dist-packages",
+        "/home/aleks/agv_gro/install/lely_core_libraries/lib/python3.10/site-packages",
+        "/home/aleks/agv_gro/install/canopen_utils/lib/python3.10/site-packages",
+        "/home/aleks/agv_gro/install/canopen_interfaces/local/lib/python3.10/dist-packages",
+        "/opt/ros/humble/lib/python3.10/site-packages",
+        "/opt/ros/humble/local/lib/python3.10/dist-packages",
+        ""
+    ]
+}

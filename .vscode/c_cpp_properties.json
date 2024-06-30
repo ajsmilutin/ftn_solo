@@ -1,0 +1,29 @@
+{
+  "configurations": [
+    {
+      "browse": {
+        "databaseFilename": "${default}",
+        "limitSymbolsToIncludedHeaders": false
+      },
+      "includePath": [
+        "/home/aleks/agv_gro/install/canopen_ros2_controllers/include/**",
+        "/home/aleks/agv_gro/install/canopen_ros2_control/include/**",
+        "/home/aleks/agv_gro/install/canopen_402_driver/include/**",
+        "/home/aleks/agv_gro/install/canopen_proxy_driver/include/**",
+        "/home/aleks/agv_gro/install/canopen_master_driver/include/**",
+        "/home/aleks/agv_gro/install/canopen_base_driver/include/**",
+        "/home/aleks/agv_gro/install/canopen_core/include/**",
+        "/home/aleks/agv_gro/install/lely_core_libraries/include/**",
+        "/home/aleks/agv_gro/install/canopen_interfaces/include/**",
+        "/opt/ros/humble/include/**",
+        "/usr/include/**"
+      ],
+      "name": "ROS",
+      "intelliSenseMode": "gcc-x64",
+      "compilerPath": "/usr/bin/gcc",
+      "cStandard": "gnu11",
+      "cppStandard": "c++14"
+    }
+  ],
+  "version": 4
+}
