@@ -5,6 +5,7 @@ import mujoco.viewer
 import pybullet
 import rclpy
 from ftn_solo.utils.bullet_env import BulletEnvWithGround
+from ftn_solo.utils.pinocchio import PinocchioWrapper
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
 import numpy as np
@@ -13,13 +14,15 @@ import time
 import math
 import yaml
 from robot_properties_solo import Resources
-from ftn_solo.tasks import *
+from ftn_solo.tasks.robot_squat import RobotMove
+from ftn_solo.tasks.task_joint_spline import TaskJointSpline
 from tf2_ros import TransformBroadcaster
 from geometry_msgs.msg import TransformStamped
 
 
-class Connector():
+class Connector(PinocchioWrapper):
     def __init__(self, robot_version, logger, *args, **kwargs) -> None:
+        super().__init__(robot_version,logger)
         self.resources = Resources(robot_version)
         with open(self.resources.config_path, 'r') as stream:
             try:
@@ -283,6 +286,7 @@ class ConnectorNode(Node):
         hardware = self.get_parameter(
             'hardware').get_parameter_value().string_value
         self.time_publisher = None
+        
         if hardware.lower() != "robot":
             self.time_publisher = self.create_publisher(Clock, "/clock", 10)
         self.clock = Clock()
@@ -325,6 +329,9 @@ class ConnectorNode(Node):
         if task == 'joint_spline':
             self.task = TaskJointSpline(self.connector.num_joints(),
                                         robot_version, self.get_parameter('config').get_parameter_value().string_value)
+        elif task == 'robot_squat':
+            self.task = RobotMove(self.connector.num_joints(),robot_version, self.get_parameter('config').get_parameter_value().string_value,self.get_logger())
+        
         else:
             self.logger.error(
                 'Unknown task selected!!! Switching to joint_spline task!')
@@ -338,7 +345,7 @@ class ConnectorNode(Node):
         joint_state = JointState()
         transform = TransformStamped()
         position, velocity = self.connector.get_data()
-        self.task.init_pose(position, velocity)
+        self.task.init_pose(position,velocity)
         while self.connector.is_running():
             position, velocity = self.connector.get_data()
             sensors = self.connector.get_sensor_readings()
@@ -346,7 +353,7 @@ class ConnectorNode(Node):
                 elapsed = self.clock.clock.sec + self.clock.clock.nanosec / 1e9
             else:
                 elapsed = (self.get_clock().now() - start).nanoseconds / 1e9
-
+                
             torques = self.task.compute_control(
                 elapsed, position, velocity, sensors)
             self.connector.set_torques(torques)
