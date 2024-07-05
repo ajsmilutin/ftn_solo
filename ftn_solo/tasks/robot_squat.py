@@ -5,22 +5,20 @@ from ftn_solo.controllers.rnea import RneAlgorithm
 
 class RobotMove():  
     
-    def __init__(self,num_joints,robot_version,config_yaml,logger) -> None:    
+    def __init__(self,num_joints,robot_version,config_yaml,logger,dt) -> None:    
         
-        self.pin_robot = PinocchioWrapper(robot_version,logger)
-        self.joint_controller = RneAlgorithm(num_joints, config_yaml,robot_version,logger)
+        self.pin_robot = PinocchioWrapper(robot_version,logger,dt)
+        self.joint_controller = RneAlgorithm(num_joints, config_yaml,robot_version,logger,dt)
             
-        self.alfa = [-38.6248,-60,-48.4917,-10.907]
+        self.alfa = [-0,-90]
         self.z_vectors = [
-            np.array([0.175, 0.1476, -0.25]),
-            np.array([0.175, 0.1476, -0.16]),
-            np.array([0.175, 0.1476, -0.25]),  
-            np.array([0.175, 0.1476, -0.25]),
+            np.array([0.196, 0.1469, -0.32]),
+            np.array([0.196, 0.1469, -0.00]),
         ]
                     
         self.steps=[]
         self.step=0
-        self.i=0
+        self.eps = 6e-8
         
         self.get_logger=logger
     def init_pose(self,q,dq):
@@ -74,13 +72,10 @@ class RobotMove():
         return pos
     
     def compute_control(self, t,position, velocity, sensors):
-        self.i=self.i+1
-        toqrues = self.joint_controller.rnea(self.steps[self.step],position,velocity,self.get_logger)
-        if self.i >= 200:
+        toqrues = self.joint_controller.rnea(self.steps[self.step],position,velocity)
+        if self.joint_controller.get_delta_error() < self.eps:
             self.step = self.step + 1
-            self.i=0
-        if self.step == 3:
+        if self.step == len(self.steps):
             self.step = 0
-        
         return toqrues
         

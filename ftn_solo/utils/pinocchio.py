@@ -4,16 +4,17 @@ from robot_properties_solo.solo12wrapper import Solo12Config
 
 
 class PinocchioWrapper(object):
-    def __init__(self,robot_version,logger):
+    def __init__(self,robot_version,logger,dt):
         
         # self.resourses = Resources(robot_version)
         self.pin_robot = Solo12Config.buildRobotWrapper()
         self.model = self.pin_robot.model
         self.data = self.model.createData()
         self.logger=logger
-        joint_ids = list(range(self.model.njoints))
-        self.logger.info(f"Robot has {joint_ids} joints")
-        
+        self.dt=dt
+        self.prev_err = np.inf
+        self.delta_error = np.inf
+                
         self.end_eff_ids = []
         self.end_effector_names = []
         controlled_joints = []
@@ -32,12 +33,7 @@ class PinocchioWrapper(object):
         self.fr=pin.ReferenceFrame.LOCAL
         
         #Parameters for IK
-        self.eps    = 1e-4
-        self.IT_MAX = 1000
-        self.DT     = 0.05
-        self.damp   = 0.05
-        self.success = False
-        self.i = 0
+        self.DT     = 0.02
         self.epsilon = 0.0000002
         self.k_max = 0.00000002
 
@@ -52,19 +48,27 @@ class PinocchioWrapper(object):
         return pin.computeGeneralizedGravity(self.model, self.data, q)
 
     
-    def     moveSE3(self,R,T):
+    def moveSE3(self,R,T):
         oMdes = pin.SE3(R,T)
         return oMdes
 
     def pinIntegrate(self,q,v):
         return pin.integrate(self.model,q,v*self.DT)
+    
+    def calculate_delta_error(self,goal_position,current_position):
+        curr_error = np.linalg.norm(goal_position - current_position)
+        self.delta_error = abs(curr_error - self.prev_err)
+        self.prev_err = curr_error
+    
    
-    def framesForwardKinematics(self,q,joint_id,goalPosition,base_frame):
+    def framesForwardKinematics(self,q,joint_id,goal_position,base_frame,x):
         pin.framesForwardKinematics(self.model, self.data, q)
         iBd=self.data.oMf[base_frame]
         iMl=self.data.oMf[joint_id]
         iMr=iBd.actInv(iMl)
-        iMd = iMr.actInv(goalPosition)
+        iMd = iMr.actInv(goal_position)
+        if x == 0:
+            self.calculate_delta_error(goal_position.translation,iMr.translation)
         nu=pin.log(iMd).vector
         return nu
    
@@ -105,9 +109,12 @@ class PinocchioWrapper(object):
         pin.aba(self.model,self.data,q,dq,tau_ref)
         return self.data.ddq
     
+    def get_delta_error(self):
+        return self.delta_error
+    
     def pd_controller(self,ref_pos,ref_vel,position,velocity):
-        Kp=4
-        Kd=0.05
+        Kp=2.0
+        Kd=0.1
         zeros=np.zeros(6)
         control = Kp * (ref_pos - position) + Kd * (ref_vel - velocity)
         return np.concatenate((zeros,control))

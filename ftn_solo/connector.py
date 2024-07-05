@@ -20,9 +20,8 @@ from tf2_ros import TransformBroadcaster
 from geometry_msgs.msg import TransformStamped
 
 
-class Connector(PinocchioWrapper):
+class Connector():
     def __init__(self, robot_version, logger, *args, **kwargs) -> None:
-        super().__init__(robot_version,logger)
         self.resources = Resources(robot_version)
         with open(self.resources.config_path, 'r') as stream:
             try:
@@ -330,7 +329,7 @@ class ConnectorNode(Node):
             self.task = TaskJointSpline(self.connector.num_joints(),
                                         robot_version, self.get_parameter('config').get_parameter_value().string_value)
         elif task == 'robot_squat':
-            self.task = RobotMove(self.connector.num_joints(),robot_version, self.get_parameter('config').get_parameter_value().string_value,self.get_logger())
+            self.task = RobotMove(self.connector.num_joints(),robot_version, self.get_parameter('config').get_parameter_value().string_value,self.get_logger(),self.connector.dt)
         
         else:
             self.logger.error(
