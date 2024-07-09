@@ -20,7 +20,8 @@ def launch_setup(context, *args, **kwargs):
     hardware = hardware.perform(context)
     config = config.perform(context)
     if not os.path.isfile(config):
-        config = os.path.join(get_package_share_directory("ftn_solo"), "config", "tasks", config)
+        config = os.path.join(get_package_share_directory(
+            "ftn_solo"), "config", "tasks", config)
 
     use_sim_time = hardware.lower() != "robot"
     resources = Resources(robot_version_value)
