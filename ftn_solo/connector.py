@@ -13,7 +13,7 @@ import time
 import math
 import yaml
 from robot_properties_solo import Resources
-from ftn_solo.tasks import *
+from ftn_solo.tasks.robot_squat import RobotMove
 from tf2_ros import TransformBroadcaster
 from geometry_msgs.msg import TransformStamped
 
@@ -283,6 +283,7 @@ class ConnectorNode(Node):
         hardware = self.get_parameter(
             'hardware').get_parameter_value().string_value
         self.time_publisher = None
+
         if hardware.lower() != "robot":
             self.time_publisher = self.create_publisher(Clock, "/clock", 10)
         self.clock = Clock()
@@ -325,6 +326,10 @@ class ConnectorNode(Node):
         if task == 'joint_spline':
             self.task = TaskJointSpline(self.connector.num_joints(),
                                         robot_version, self.get_parameter('config').get_parameter_value().string_value)
+        elif task == 'robot_squat':
+            self.task = RobotMove(self.connector.num_joints(), robot_version, self.get_parameter(
+                'config').get_parameter_value().string_value, self.get_logger(), self.connector.dt)
+
         else:
             self.logger.error(
                 'Unknown task selected!!! Switching to joint_spline task!')
