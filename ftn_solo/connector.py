@@ -212,13 +212,15 @@ class MujocoConnector(SimulationConnector):
         super().__init__(robot_version, logger)
         self.model = mujoco.MjModel.from_xml_path(self.resources.mjcf_path)
         self.model.opt.timestep = 1e-3
+        if fixed:
+            self.model.equality("fixed").active0 = True
+
         self.data = mujoco.MjData(self.model)
         self.data.qpos[0:3] = pos
         mujoco.mju_euler2Quat(self.data.qpos[3:7], rpy, "XYZ")
         self.data.qpos[7:] = 0
+
         self.data.qvel[:] = 0
-        if fixed:
-            self.model.body("base_link").jntnum = 0
         self.joint_names = [self.model.joint(
             i+1).name for i in range(self.model.nu)]
         self.paused = start_paused
