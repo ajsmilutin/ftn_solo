@@ -304,12 +304,13 @@ class ConnectorNode(Node):
         task = self.get_parameter(
             'task').get_parameter_value().string_value
 
+        self.fixed = False
         if hardware.lower() != "robot":
             use_gui = self.get_parameter(
                 'use_gui').get_parameter_value().bool_value
             start_paused = self.get_parameter(
                 'start_paused').get_parameter_value().bool_value
-            fixed = self.get_parameter(
+            self.fixed = self.get_parameter(
                 'fixed').get_parameter_value().bool_value
             pos = self.get_parameter(
                 'pos').get_parameter_value().double_array_value
@@ -317,10 +318,10 @@ class ConnectorNode(Node):
                 'rpy').get_parameter_value().double_array_value
             if hardware.lower() == 'mujoco':
                 self.connector = MujocoConnector(robot_version, self.get_logger(),
-                                                 use_gui=use_gui, start_paused=start_paused, fixed=fixed, pos=pos, rpy=rpy)
+                                                 use_gui=use_gui, start_paused=start_paused, fixed=self.fixed, pos=pos, rpy=rpy)
             elif hardware.lower() == 'pybullet':
                 self.connector = PybulletConnector(
-                    robot_version, self.get_logger(), fixed=fixed, pos=pos, rpy=rpy)
+                    robot_version, self.get_logger(), fixed=self.fixed, pos=pos, rpy=rpy)
         else:
             self.connector = RobotConnector(robot_version,  self.get_logger())
 
@@ -371,6 +372,8 @@ class ConnectorNode(Node):
                     transform.header.stamp = joint_state.header.stamp
                     transform.header.frame_id = "world"
                     transform.child_frame_id = "base_link"
+                    if self.fixed:
+                        transform.transform.translation.z = 0.4
                     transform.transform.rotation.w = sensors["attitude"][0]
                     transform.transform.rotation.x = sensors["attitude"][1]
                     transform.transform.rotation.y = sensors["attitude"][2]
