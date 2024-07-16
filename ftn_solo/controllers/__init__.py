@@ -1,1 +1,1 @@
-from .pd import PDWithFrictionCompensation
+from .pd import PDWithFrictionCompensation, PDBase

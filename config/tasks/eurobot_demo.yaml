@@ -30,33 +30,46 @@ poses:
       0.0, -1.2, 2.5,
       0.0, -1.2, 2.5]
 on_start:
+  type: "spline"
   poses: ["zero_pose"]
   durations: [10.0]
 
 loop:
-  - poses: ["zero_pose", "initial_pose" ,"zero_pose", "initial_pose","zero_pose", "initial_pose"]
+  - type: "spline"
+    poses: ["zero_pose", "initial_pose" ,"zero_pose", "initial_pose","zero_pose", "initial_pose"]
     durations: [0.5, 1.0, 1.5, 2.0, 2.5, 3.0]
-  - poses: ["upper_pose"]
+  - type: "spline"
+    poses: ["upper_pose"]
     durations: [0.5]
-  - poses: ["fl_up", "upper_pose"]
+  - type: "spline"
+    poses: ["fl_up", "upper_pose"]
     durations: [0.15, 0.3]
-  - poses: ["fr_up", "upper_pose"]
+  - type: "spline"
+    poses: ["fr_up", "upper_pose"]
     durations: [0.15, 0.3]
-  - poses: ["fl_up", "upper_pose"]
+  - type: "spline"
+    poses: ["fl_up", "upper_pose"]
     durations: [0.15, 0.3]
-  - poses: ["fr_up", "upper_pose"]
+  - type: "spline"
+    poses: ["fr_up", "upper_pose"]
     durations: [0.2, 0.4]
-  - poses: ["fl_up", "upper_pose"]
+  - type: "spline"
+    poses: ["fl_up", "upper_pose"]
     durations: [0.15, 0.3]
-  - poses: ["fr_up", "upper_pose"]
+  - type: "spline"
+    poses: ["fr_up", "upper_pose"]
     durations: [0.15, 0.3]
-  - poses: ["zero_pose"]
+  - type: "spline"
+    poses: ["zero_pose"]
     durations: [0.5]
-  - poses: ["siting"]
+  - type: "spline"
+    poses: ["siting"]
     durations: [1.0]
-  - poses: ["siting"]
+  - type: "spline"
+    poses: ["siting"]
     durations: [5.0]
-  - poses: ["zero_pose"]
+  - type: "spline"
+    poses: ["zero_pose"]
     durations: [1.0]
 
 
