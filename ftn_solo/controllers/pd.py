@@ -16,7 +16,7 @@ class PDWithFrictionCompensation():
         self.max_control = float_or_list(
             yaml_config["max_control"], num_joints)
 
-    def compute_control(self, ref_position,  ref_velocity, position, velocity):
+    def compute_control(self, ref_position, ref_velocity, position, velocity):
         friction_velocity = np.where(
             abs(ref_velocity) > self.friction_cutoff, ref_velocity, 0)
         control = self.Kp * (ref_position - position) + self.Kd * (ref_velocity -
