@@ -2,7 +2,7 @@ from transitions import Machine
 import numpy as np
 from scipy.interpolate import CubicSpline
 from .task_base import TaskBase
-from ftn_solo.controllers import FeedbackLinearization
+from ftn_solo.controllers import PDWithFrictionCompensation
 from robot_properties_solo import Solo12Robot
 import pinocchio as pin
 from rclpy.node import Node
@@ -31,7 +31,7 @@ class TaskJointSpline(TaskBase):
             self.robot = Solo12Robot()
         else:
             raise ("Only solo12 supported")
-        self.joint_controller = FeedbackLinearization(
+        self.joint_controller = PDWithFrictionCompensation(
             self.robot.pin_robot, self.config["joint_controller"])
         self.parse_poses(self.config["poses"])
         self.on_start = SplineData(
