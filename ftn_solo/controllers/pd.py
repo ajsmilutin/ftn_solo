@@ -6,7 +6,8 @@ def float_or_list(value, num_joints):
 
 
 class PDWithFrictionCompensation():
-    def __init__(self, num_joints, yaml_config) -> None:
+    def __init__(self, robot, yaml_config) -> None:
+        num_joints = robot.nv - 6
         self.Kp = float_or_list(yaml_config["Kp"], num_joints)
         self.Kd = float_or_list(yaml_config["Kd"], num_joints)
         self.B = float_or_list(yaml_config["B"], num_joints)
@@ -16,7 +17,7 @@ class PDWithFrictionCompensation():
         self.max_control = float_or_list(
             yaml_config["max_control"], num_joints)
 
-    def compute_control(self, ref_position, ref_velocity, position, velocity):
+    def compute_control(self, ref_position, ref_velocity, ref_acceleration, position, velocity):
         friction_velocity = np.where(
             abs(ref_velocity) > self.friction_cutoff, ref_velocity, 0)
         control = self.Kp * (ref_position - position) + self.Kd * (ref_velocity -

@@ -13,7 +13,6 @@ from copy import deepcopy
 from ftn_solo.utils.trajectories import SplineData, PiecewiseLinear
 import proxsuite
 from ftn_solo.utils.types import FrictionCone
-import time
 
 
 class Estimator:
@@ -95,7 +94,7 @@ class TaskMoveBase(TaskBase):
         else:
             raise ("Only solo12 supported")
         self.joint_controller = PDWithFrictionCompensation(
-            len(self.robot.joint_names), self.config["joint_controller"])
+            self.robot.pin_robot, self.config["joint_controller"])
         self.parse_poses(self.config["poses"])
         self.on_start = SplineData(
             self.config["on_start"], self.num_joints, self.poses)
@@ -170,7 +169,7 @@ class TaskMoveBase(TaskBase):
         self.ref_velocity = self.trajectory(t, 1)
         self.ref_acceleration = self.trajectory(t, 2)
         self.control = self.joint_controller.compute_control(
-            self.ref_position, self.ref_velocity,  q, qv)
+            self.ref_position, self.ref_velocity, None, q, qv)
         return t >= self.transition_end
 
     def moving_base(self, t, q, qv):
@@ -213,15 +212,14 @@ class TaskMoveBase(TaskBase):
             start = nv+nv-6
             for i, cone in enumerate(self.friction_cones.values()):
                 C[i*4:i*4+4, start+i*3:start+i*3+3] = cone.primal.face
-            d = 0.05*np.ones(4*self.num_faces)
+            d = 0.5*np.ones(4*self.num_faces)
             u = 1e20*np.ones(4*self.num_faces)
             self.qp.init(Hessian, g, A, b, C, d, u)
             self.initialized = True
         else:
             self.qp.update(H=Hessian, g=g, A=A, b=b)
 
-        start = time.time()
-        self.qp.solve()        
+        self.qp.solve()
         self.control = self.qp.results.x[nv:2*nv-6]
         return False
 
