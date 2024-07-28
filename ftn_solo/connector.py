@@ -16,6 +16,7 @@ from robot_properties_solo import Resources
 from ftn_solo.tasks import *
 from tf2_ros import TransformBroadcaster
 from geometry_msgs.msg import TransformStamped
+from ftn_solo.utils.conversions import ToVector
 
 
 class Connector():
@@ -328,6 +329,12 @@ class ConnectorNode(Node):
         if task == 'joint_spline':
             self.task = TaskJointSpline(self.connector.num_joints(),
                                         robot_version, self.get_parameter('config').get_parameter_value().string_value)
+        elif task == 'move_base':
+            self.task = TaskMoveBase(self.connector.num_joints(),
+                                     robot_version, self.get_parameter('config').get_parameter_value().string_value)
+        elif task == 'draw_shapes':
+            self.task = TaskDrawShapes(self.connector.num_joints(),
+                                       robot_version, self.get_parameter('config').get_parameter_value().string_value)
         else:
             self.logger.error(
                 'Unknown task selected!!! Switching to joint_spline task!')
@@ -368,7 +375,18 @@ class ConnectorNode(Node):
                 joint_state.velocity = velocity.tolist()
                 joint_state.name = self.connector.joint_names
                 self.join_state_pub.publish(joint_state)
-                if "attitude" in sensors.keys():
+                if hasattr(self.task, "estimator"):
+                    transform.header.stamp = joint_state.header.stamp
+                    transform.header.frame_id = "world"
+                    transform.child_frame_id = "base_link"
+                    transform.transform.translation = ToVector(
+                        self.task.estimator.estimated_q[0:3])
+                    transform.transform.rotation.w = self.task.estimator.estimated_q[6]
+                    transform.transform.rotation.x = self.task.estimator.estimated_q[3]
+                    transform.transform.rotation.y = self.task.estimator.estimated_q[4]
+                    transform.transform.rotation.z = self.task.estimator.estimated_q[5]
+                    self.tf_broadcaster.sendTransform(transform)
+                elif "attitude" in sensors.keys():
                     transform.header.stamp = joint_state.header.stamp
                     transform.header.frame_id = "world"
                     transform.child_frame_id = "base_link"
@@ -379,6 +397,7 @@ class ConnectorNode(Node):
                     transform.transform.rotation.y = sensors["attitude"][2]
                     transform.transform.rotation.z = sensors["attitude"][3]
                     self.tf_broadcaster.sendTransform(transform)
+
             self.connector.step()
 
 
