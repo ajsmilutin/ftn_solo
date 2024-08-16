@@ -17,6 +17,7 @@ from ftn_solo.tasks import *
 from tf2_ros import TransformBroadcaster
 from geometry_msgs.msg import TransformStamped
 from ftn_solo.utils.conversions import ToVector
+from ftn_solo_control import SensorData
 
 
 class Connector():
@@ -64,8 +65,10 @@ class RobotConnector(Connector):
         return self.robot.joints.number_motors
 
     def get_sensor_readings(self):
-        q = self.robot.imu.attitude_quaternion
-        return {"attitude": [q[3], q[0], q[1], q[2]]}
+        q = self.robot.imu_data.attitude_quaternion
+        data = SensorData()
+        data.imu_data.attitude = np.array([q[3], q[0], q[1], q[2]])
+        return data
 
 
 class SimulationConnector(Connector):
@@ -151,13 +154,13 @@ class PybulletConnector(SimulationConnector):
 
     def contact_sensors(self):
         contact_points = pybullet.getContactPoints(self.robot_id)
-        bodies_in_contact = set()
+        bodies_in_contact = list()
 
         for contact_info in contact_points:
             bodies_in_contact.add(contact_info[3])
 
-        self.reading = {name: self.end_effector_ids[j] in bodies_in_contact for j, name in enumerate(
-            self.touch_sensors)}
+        self.reading = [self.end_effector_ids[j] in bodies_in_contact for j, name in enumerate(
+            self.touch_sensors)]
 
         return self.reading
 
@@ -184,10 +187,15 @@ class PybulletConnector(SimulationConnector):
                     rot_base_to_world.T.dot(imu_linacc + np.array([0.0, 0.0, 9.81]))))
 
     def get_sensor_readings(self):
+        readings = SensorData()
         q, gyro, accel = self.imu_sensor()
-        return {"attitude": [q[3], q[0], q[1], q[2]],
-                "imu": (gyro,
-                        accel), "touch": self.contact_sensors()}
+
+        readings.touch[i] = np.array(self.contact_sensors(), dtype=np.bool)
+        readings.imu_data.attitude = np.array([q[3], q[0], q[1], q[2]])
+        readings.imu_data.angular_velocity = gyro
+        readings.imu_data.linear_acceleration = accel
+
+        return readings
 
     def set_torques(self, torques):
         pybullet.setJointMotorControlArray(
@@ -244,16 +252,18 @@ class MujocoConnector(SimulationConnector):
         return self.process_coordinates(self.data.qpos[7:], self.data.qvel[6:])
 
     def get_sensor_readings(self):
-        reading = {}
-        for sensor in self.touch_sensors:
+        readings = SensorData()
+        for i, sensor in enumerate(self.touch_sensors):
             name = sensor + "_touch"
-            reading[name] = self.data.sensor(name).data[0] > 0
+            readings.touch[i] = self.data.sensor(name).data[0] > 0
+        readings.imu_data.attitude = self.data.sensor("attitude").data
+        readings.imu_data.angular_velocity = self.data.sensor(
+            "angular-velocity").data
+        readings.imu_data.linear_acceleration = self.data.sensor(
+            "linear-acceleration").data
+        readings.imu_data.magnetometer = self.data.sensor("magnetometer").data
         # qw, qx, qy, qz
-        return {"attitude": self.data.sensor("attitude").data,
-                "imu": (self.data.sensor("angular-velocity").data,
-                        self.data.sensor("linear-acceleration").data,
-                        self.data.sensor("magnetometer").data),
-                "touch": reading}
+        return readings
 
     def set_torques(self, torques):
         self.data.ctrl = torques
@@ -392,10 +402,10 @@ class ConnectorNode(Node):
                     transform.child_frame_id = "base_link"
                     if self.fixed:
                         transform.transform.translation.z = 0.4
-                    transform.transform.rotation.w = sensors["attitude"][0]
-                    transform.transform.rotation.x = sensors["attitude"][1]
-                    transform.transform.rotation.y = sensors["attitude"][2]
-                    transform.transform.rotation.z = sensors["attitude"][3]
+                    transform.transform.rotation.w = sensors.imu_data.attitude[0]
+                    transform.transform.rotation.x = sensors.imu_data.attitude[1]
+                    transform.transform.rotation.y = sensors.imu_data.attitude[2]
+                    transform.transform.rotation.z = sensors.imu_data.attitude[3]
                     self.tf_broadcaster.sendTransform(transform)
 
             self.connector.step()
