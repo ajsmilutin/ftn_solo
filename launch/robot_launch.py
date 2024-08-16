@@ -52,24 +52,24 @@ def launch_setup(context, *args, **kwargs):
             ],
             parameters=[{"use_sim_time": use_sim_time}],
         ),
-        Node(
-            package="ftn_solo",
-            executable="connector_node",
-            name="connector_node",
-            parameters=[
-                {
-                    "hardware": hardware,
-                    "robot_version": robot_version_value,
-                    "fixed": fixed,
-                    "start_paused": start_paused,
-                    "pos": pos,
-                    "rpy": rpy,
-                    "task": task,
-                    "config": config
-                }
-            ],
-            output="log"
-        ),
+        # Node(
+        #     package="ftn_solo",
+        #     executable="connector_node",
+        #     name="connector_node",
+        #     parameters=[
+        #         {
+        #             "hardware": hardware,
+        #             "robot_version": robot_version_value,
+        #             "fixed": fixed,
+        #             "start_paused": start_paused,
+        #             "pos": pos,
+        #             "rpy": rpy,
+        #             "task": task,
+        #             "config": config
+        #         }
+        #     ],
+        #     output="log"
+        # ),
     ]
 
 
