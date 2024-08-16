@@ -83,8 +83,8 @@ class TaskJointSpline(TaskBase):
         full_q = np.zeros(self.robot.pin_robot.nq)
         full_qv = np.zeros(self.robot.pin_robot.nv)
         full_q[2] = 0.4
-        full_q[3:6] = sensors["attitude"][1:4]
-        full_q[6] = sensors["attitude"][0]
+        full_q[3:6] = sensors.imu_data.attitude[1:4]
+        full_q[6] = sensors.imu_data.attitude[0]
         full_q[7:] = q
         full_qv[6:] = qv
         self.robot.forward_robot(full_q, full_qv)
