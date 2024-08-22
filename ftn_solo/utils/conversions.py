@@ -10,4 +10,4 @@ def ToVector(translation):
 
 
 def ToQuaternion(pin_quaternion):
-    return Quaternion(x=pin_quaternion.x(), y=pin_quaternion.y(), z=pin_quaternion.z(), w=pin_quaternion.w())
+    return Quaternion(x=pin_quaternion.x, y=pin_quaternion.y, z=pin_quaternion.z, w=pin_quaternion.w)

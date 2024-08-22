@@ -24,7 +24,6 @@ def compute_wcm(friction_cones):
     n = iksilon.shape[0]
     v0 = np.array([0.0, 0.0, 1.0])
     found = True
-    print("gamma {}".format(upsilon))
     if not np.all(np.matmul(iksilon, v0) > -1e-6):
         v0 = np.mean(upsilon, axis=1)
         if not np.all(np.matmul(iksilon, v0) > -1e-6):
@@ -56,13 +55,10 @@ def compute_wcm(friction_cones):
     rows = int(hull.pop(0))
     surfaces = np.matrix([np.fromstring(hull.pop(0), sep=' ')
                          for i in range(0, rows)])
-    absvalue = np.absolute(surfaces[:, 5])
-    print("SHAPE {}".format(surfaces.shape))
-    absvalue = np.absolute(surfaces[:, 5])
     # mozda minus
-    wcm = -np.column_stack([surfaces[:, 0:2]/absvalue[:],
-                            surfaces[:, 5]/absvalue,
-                            surfaces[:, 2:5]/absvalue[:]]).dot(block_diag(R.T, R.T))
+    wcm = -np.column_stack([surfaces[:, 0:2],
+                            surfaces[:, 5],
+                            surfaces[:, 2:5]]).dot(block_diag(R.T, R.T))
     return wcm
 
 

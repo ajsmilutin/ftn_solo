@@ -386,16 +386,17 @@ class ConnectorNode(Node):
                 joint_state.name = self.connector.joint_names
                 self.join_state_pub.publish(joint_state)
                 if hasattr(self.task, "estimator"):
-                    transform.header.stamp = joint_state.header.stamp
-                    transform.header.frame_id = "world"
-                    transform.child_frame_id = "base_link"
-                    transform.transform.translation = ToVector(
-                        self.task.estimator.estimated_q[0:3])
-                    transform.transform.rotation.w = self.task.estimator.estimated_q[6]
-                    transform.transform.rotation.x = self.task.estimator.estimated_q[3]
-                    transform.transform.rotation.y = self.task.estimator.estimated_q[4]
-                    transform.transform.rotation.z = self.task.estimator.estimated_q[5]
-                    self.tf_broadcaster.sendTransform(transform)
+                    if self.task.estimator:
+                        transform.header.stamp = joint_state.header.stamp
+                        transform.header.frame_id = "world"
+                        transform.child_frame_id = "base_link"
+                        transform.transform.translation = ToVector(
+                            self.task.estimator.estimated_q[0:3])
+                        transform.transform.rotation.w = self.task.estimator.estimated_q[6]
+                        transform.transform.rotation.x = self.task.estimator.estimated_q[3]
+                        transform.transform.rotation.y = self.task.estimator.estimated_q[4]
+                        transform.transform.rotation.z = self.task.estimator.estimated_q[5]
+                        self.tf_broadcaster.sendTransform(transform)
                 elif "attitude" in sensors.keys():
                     transform.header.stamp = joint_state.header.stamp
                     transform.header.frame_id = "world"
