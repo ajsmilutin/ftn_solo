@@ -59,7 +59,6 @@ def key_callback(keycode):
 # def simulate():
 m = mujoco.MjModel.from_xml_path("/home/ajsmilutin/solo_ws/src/robot_properties_solo/src/robot_properties_solo/resources/mjcf/solo12.mjcf")
 m.body("base").jntnum = 0
-print(dir(m.body("base")))
 d = mujoco.MjData(m)
 with mujoco.viewer.launch_passive(m, d, show_right_ui=False, key_callback=key_callback) as viewer:
     mujoco.set_mjcb_control(controller)
@@ -83,7 +82,6 @@ with mujoco.viewer.launch_passive(m, d, show_right_ui=False, key_callback=key_ca
             time.sleep(time_until_next_step)
         if leave:
             viewer.close()
-        print("STOPPP")
     
         
         
