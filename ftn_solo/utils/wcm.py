@@ -1,7 +1,6 @@
 import numpy as np
 from proxsuite import proxqp
 from scipy.linalg import block_diag
-from pyhull import qconvex
 from scipy.spatial import ConvexHull
 
 def cross_matrix(vector):
@@ -14,13 +13,11 @@ def cross_matrix(vector):
 def compute_wcm(friction_cones):
     n = len(friction_cones)
     upsilon = np.hstack(
-        [cone.primal.span for cone in friction_cones.values()])
-    # positions = [np.array([0.1, 0.05, 0]), np.array([-0.1, -0.05, 0]),
-    #              np.array([-0.1, 0.05, 0]), np.array([0.1, -0.05, 0])]
-    gamma = np.hstack([np.matmul(cross_matrix(cone.get_position()), cone.primal.span)
-                       for cone in friction_cones.values()])
+        [cone.data().primal.span for cone in friction_cones])
+    gamma = np.hstack([np.matmul(cross_matrix(cone.data().get_position()), cone.data().primal.span)
+                       for cone in friction_cones])
 
-    iksilon = np.vstack([cone.dual.face for cone in friction_cones.values()])
+    iksilon = np.vstack([cone.data().dual.face for cone in friction_cones])
     n = iksilon.shape[0]
     v0 = np.array([0.0, 0.0, 1.0])
     found = True
@@ -50,20 +47,14 @@ def compute_wcm(friction_cones):
     gamma = gamma / upsilon[2, :]
     upsilon = upsilon / upsilon[2, :]
     points = np.vstack([upsilon[0:2, :], gamma]).T
-    hull = qconvex('n', points.tolist())
-    cols = hull.pop(0)
-    rows = int(hull.pop(0))
-    surfaces = np.matrix([np.fromstring(hull.pop(0), sep=' ')
-                         for i in range(0, rows)])
-    # mozda minus
-    wcm = -np.column_stack([surfaces[:, 0:2],
+    hull = ConvexHull(points, qhull_options="Qx")
+    surfaces = hull.equations
+    return -np.column_stack([surfaces[:, 0:2],
                             surfaces[:, 5],
                             surfaces[:, 2:5]]).dot(block_diag(R.T, R.T))
-    return wcm
-
-
+    
 def project_wcm(wcm):
-    wcm_2d = np.hstack((-wcm[:, 4], wcm[:, 3], wcm[:, 2]))
+    wcm_2d = np.column_stack((-wcm[:, 4], wcm[:, 3], wcm[:, 2]))
     (n, m) = wcm_2d.shape
     points = np.zeros((0,2))
     for i in range(n-1):
