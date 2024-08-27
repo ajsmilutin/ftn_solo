@@ -21,33 +21,73 @@ class Motion:
 
 
 class EEFLinearMotion(Motion):
-    def __init__(self, eef_index, selected=[True, True, True], *args, **kwargs) -> None:
+    def __init__(
+        self,
+        eef_index,
+        selected=[True, True, True],
+        frame=pin.SE3.Identity(),
+        *args,
+        **kwargs
+    ) -> None:
         super(EEFLinearMotion, self).__init__(*args, **kwargs)
         self.eef_index = eef_index
         self.selected = selected
         self.dim = np.count_nonzero(selected)
-        self.extended = selected + [False, False, False]
+        self.frame = frame
 
-    def get_jacobian(self, model, data):
-        return pin.getFrameJacobian(
-            model, data, self.eef_index, pin.ReferenceFrame.LOCAL_WORLD_ALIGNED
-        )[self.extended, :]
+    def get_jacobian(self, model, data, q, qv):
+        return np.matmul(
+            self.frame.rotation.T,
+            pin.getFrameJacobian(
+                model, data, self.eef_index, pin.ReferenceFrame.LOCAL_WORLD_ALIGNED
+            )[:3, :],
+        )[self.selected, :]
 
     def get_pos_error(self, pdes, model, data):
-        return pdes - data.oMf[self.eef_index].translation[self.selected]
+        return (
+            pdes
+            - self.frame.actInv(data.oMf[self.eef_index].translation)[self.selected]
+        )
 
     def get_vel_error(self, vdes, model, data):
         return (
             vdes
-            - pin.getFrameVelocity(
-                model, data, self.eef_index, pin.ReferenceFrame.LOCAL_WORLD_ALIGNED
-            ).linear[self.selected]
+            - np.matmul(
+                self.frame.rotation.T,
+                pin.getFrameVelocity(
+                    model, data, self.eef_index, pin.ReferenceFrame.LOCAL_WORLD_ALIGNED
+                ).linear
+            )[self.selected]
         )
 
     def get_acceleration(self, model, data):
-        return pin.getFrameAcceleration(
-            model, data, self.eef_index, pin.ReferenceFrame.LOCAL_WORLD_ALIGNED
-        ).linear[self.selected]
+        return np.matmul(
+            self.frame.rotation.T,
+            pin.getFrameAcceleration(
+                model, data, self.eef_index, pin.ReferenceFrame.LOCAL_WORLD_ALIGNED
+            ).linear
+        )[self.selected]
+
+
+class COMLinearMotion(Motion):
+    def __init__(
+        self, selected=[True, True, True], *args, **kwargs
+    ) -> None:
+        super(COMLinearMotion, self).__init__(*args, **kwargs)
+        self.selected = selected
+        self.dim = np.count_nonzero(selected)
+
+    def get_jacobian(self, model, data, q, qv):
+        return pin.jacobianCenterOfMass(model, data, q, False)[self.selected, :]
+
+    def get_pos_error(self, pdes, model, data):
+        return pdes - data.com[0][self.selected]
+
+    def get_vel_error(self, vdes, model, data):
+        return vdes - data.vcom[0][self.selected]
+
+    def get_acceleration(self, model, data):
+        return data.acom[0][self.selected]
 
 
 class EEFAngularMotion(Motion):
@@ -58,13 +98,13 @@ class EEFAngularMotion(Motion):
         self.dim = np.count_nonzero(selected)
         self.extended = [False, False, False] + selected
 
-    def get_jacobian(self, model, data):
+    def get_jacobian(self, model, data, q, qv):
         return pin.getFrameJacobian(
             model, data, self.eef_index, pin.ReferenceFrame.LOCAL_WORLD_ALIGNED
         )[self.extended, :]
 
     def get_pos_error(self, pdes, model, data):
-        ori = data.oMf[self.eef_index].rotation        
+        ori = data.oMf[self.eef_index].rotation
         return np.matmul(ori, pin.log(np.matmul(ori.T, pdes)))[self.selected]
 
     def get_vel_error(self, vdes, model, data):
