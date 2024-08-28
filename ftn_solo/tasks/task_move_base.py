@@ -27,11 +27,11 @@ from ftn_solo_control import (
     publish_cone_marker,
     get_touching_pose,
     get_touching_placement,
-    EEFLinearMotion,
+    EEFPositionMotion,
+    EEFRotationMotion,
+    COMMotion
 )
 from ftn_solo.utils.wcm import compute_wcm, project_wcm
-from dataclasses import dataclass
-from ftn_solo.utils.motion import EEFAngularMotion, COMLinearMotion
 
 
 class MotionData:
@@ -320,8 +320,8 @@ class TaskMoveBase(TaskBase):
         com_trajectory = PieceWiseLinearPosition()
         com_trajectory.add(np.copy(self.robot.pin_robot.data.com[0][:2]), 0.0)
         com_trajectory.add(pos, time)
-        com_motion = COMLinearMotion(
-            selected=[True, True, False], Kp=200, Kd=50)
+        com_motion = COMMotion(
+            np.array([True, True, False]), pin.SE3.Identity(), 200, 50)
         com_motion.set_trajectory(com_trajectory)
 
         base_pose = self.robot.pin_robot.data.oMf[self.base_index]
@@ -329,13 +329,13 @@ class TaskMoveBase(TaskBase):
         base_trajectory.add(np.array([base_pose.translation[2]]), 0.0)
         base_trajectory.add(np.array([0.25]), time)
 
-        base_linear_motion = EEFLinearMotion(
+        base_linear_motion = EEFPositionMotion(
             self.base_index, np.array(
                 [False, False, True], dtype=bool), origin_pose, 200, 50
         )
         base_linear_motion.set_trajectory(base_trajectory)
 
-        base_angular_motion = EEFAngularMotion(self.base_index, Kp=200, Kd=50)
+        base_angular_motion = EEFRotationMotion(self.base_index, 200, 50)
         rotation_trajectory = PieceWiseLinearRotation()
         rotation_trajectory.add(base_pose.rotation, 0)
         rotation_trajectory.add(origin_pose.rotation, time)
@@ -350,7 +350,7 @@ class TaskMoveBase(TaskBase):
         # create foot trajectory
         self.end_times = {}
         for motion in self.sequence[self.phase].motions:
-            eef_motion = EEFLinearMotion(motion.eef_index, np.array(
+            eef_motion = EEFPositionMotion(motion.eef_index, np.array(
                 [True, True, True], dtype=bool), pin.SE3.Identity(), 2500, 500)
             eef_trajectory = SplineTrajectory(True)
             position = self.robot.pin_robot.data.oMf[motion.eef_index].translation
