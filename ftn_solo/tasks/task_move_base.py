@@ -29,7 +29,9 @@ from ftn_solo_control import (
     get_touching_placement,
     EEFPositionMotion,
     EEFRotationMotion,
-    COMMotion
+    COMMotion,
+    WholeBodyController,
+    MotionsVector
 )
 from ftn_solo.utils.wcm import compute_wcm, project_wcm
 
@@ -102,7 +104,7 @@ class TaskMoveBase(TaskBase):
         self.friction_cones = dict()
         self.sequence = parse_sequence(self.config["crawl"])
         self.phase = -1
-        self.motions = []
+        self.motions = MotionsVector()
         self.end_times = {}
 
     def parse_poses(self, poses):
@@ -341,8 +343,11 @@ class TaskMoveBase(TaskBase):
         rotation_trajectory.add(origin_pose.rotation, time)
         base_angular_motion.set_trajectory(rotation_trajectory)
 
-        self.motions = [com_motion, base_linear_motion,
-                        base_angular_motion]
+        self.motions = MotionsVector()
+        self.motions.append(com_motion)
+        self.motions.append(base_linear_motion)
+        self.motions.append(base_angular_motion)
+
         self.motions_dim = 0
         for motion in self.motions:
             motion.trajectory.set_start(t)
@@ -372,17 +377,10 @@ class TaskMoveBase(TaskBase):
 
         self.num_contacts = len(self.friction_cones)
         self.init_qp()
-        self.qp_times = []
 
     def init_qp(self):
-        self.qp = proxsuite.proxqp.dense.QP(
-            self.robot.pin_robot.nv * 2 - 6 + self.num_contacts * 3,
-            self.robot.pin_robot.nv + self.num_contacts * 3,
-            self.num_contacts * self.num_faces + self.robot.pin_robot.nv - 6,
-            False,
-            proxsuite.proxqp.dense.HessianType.Dense,
-        )
-        self.initialized = False
+        self.controller = WholeBodyController(
+            self.estimator, self.friction_cones)
 
     def following_spline(self, t, q, qv, sensors):
         self.ref_position = self.trajectory(t)
@@ -394,9 +392,6 @@ class TaskMoveBase(TaskBase):
         return t >= self.transition_end
 
     def moving_base(self, t, q, qv, sensors):
-        dim = self.qp.model.dim
-        n_eq = self.qp.model.n_eq
-        nv = self.robot.pin_robot.nv
 
         finished = len(
             self.end_times) == 0 and self.motions[0].trajectory.finished
@@ -446,64 +441,9 @@ class TaskMoveBase(TaskBase):
             if p > 0.25:
                 finished = True
 
-        # constraints
-        accel = self.estimator.acceleration
-        vel = self.estimator.velocity
-        Jc = self.estimator.constraint
-        # motions
-        Jm = np.zeros((self.motions_dim, dim))
-        amdes = np.zeros(self.motions_dim)
-        aa = np.zeros(self.motions_dim)
-        bb = np.zeros(self.motions_dim)
-        start_index = 0
-        for motion in self.motions:
-            Jm[start_index: start_index + motion.dim, :nv] = motion.get_jacobian(
-                self.robot.pin_robot.model,
-                self.robot.pin_robot.data,
-                self.estimator.estimated_q,
-                self.estimator.estimated_qv,
-            )
-            aa[start_index: start_index + motion.dim] = (
-                motion.get_desired_acceleration(
-                    t, self.robot.pin_robot.model, self.robot.pin_robot.data
-                )
-            )
-            bb[start_index: start_index + motion.dim] = motion.get_acceleration(
-                self.robot.pin_robot.model, self.robot.pin_robot.data
-            )
-            start_index = start_index + motion.dim
+        self.control = self.controller.compute(
+            t, self.robot.pin_robot.model, self.robot.pin_robot.data, self.estimator, self.motions)
 
-        amdes = aa - bb
-
-        Hessian = np.matmul(Jm.T, Jm)
-        g = -np.matmul(Jm.T, amdes)
-        A = np.zeros((n_eq, dim))
-        A[:nv, :nv] = self.robot.pin_robot.data.M
-        A[6:nv, nv: 2 * nv - 6] = -np.eye(nv - 6)
-        A[:nv, 2 * nv - 6:] = -Jc.T
-        b = np.zeros((nv + self.num_contacts * 3))
-        b[:nv] = -self.robot.pin_robot.data.nle
-        A[nv: nv + 4 * 3, :nv] = Jc
-        b[nv:] = -accel - 20 * vel
-        if not self.initialized:
-            C = np.zeros((self.num_contacts * self.num_faces + nv - 6, dim))
-            start = nv + nv - 6
-            for i, cone in enumerate(self.friction_cones):
-                C[i * 4: i * 4 + 4, start + i * 3: start + i * 3 + 3] = (
-                    cone.data().primal.face
-                )
-            C[self.num_contacts * self.num_faces:,
-                nv: 2 * nv - 6] = np.eye(nv - 6)
-            d = 0.25 * np.ones(self.num_contacts * self.num_faces + nv - 6)
-            d[self.num_contacts * self.num_faces:] = -2.2
-            u = 1e20 * np.ones(self.num_contacts * self.num_faces + nv - 6)
-            u[self.num_contacts * self.num_faces:] = 2.2
-            self.qp.init(Hessian, g, A, b, C, d, u)
-            self.initialized = True
-        else:
-            self.qp.update(H=Hessian, g=g, A=A, b=b)
-        self.qp.solve()
-        self.control = self.qp.results.x[nv: 2 * nv - 6]
         return finished and (self.phase < len(self.sequence) - 1)
 
     def compute_control(self, t, q, qv, sensors):
