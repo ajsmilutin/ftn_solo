@@ -10,12 +10,15 @@ from rclpy.node import Node
 from visualization_msgs.msg import MarkerArray, Marker
 from geometry_msgs.msg import PoseArray, Pose
 from std_msgs.msg import ColorRGBA
-from ftn_solo.utils.conversions import ToPoint, ToQuaternion
+from ftn_solo.utils.conversions import ToPoint, ToQuaternion, ToVector
 from copy import deepcopy
 from scipy.special import erf, erfc
 from ftn_solo.utils.trajectories import get_trajectory_marker, SplineData
-
+from sensor_msgs.msg import JointState
+from geometry_msgs.msg import TransformStamped
+from tf2_ros import TransformBroadcaster
 import time
+import math
 import proxsuite
 from ftn_solo_control import (
     FrictionCone,
@@ -27,6 +30,7 @@ from ftn_solo_control import (
     publish_cone_marker,
     get_touching_pose,
     get_touching_placement,
+    get_end_of_motion,
     EEFPositionMotion,
     EEFRotationMotion,
     COMMotion,
@@ -98,6 +102,10 @@ class TaskMoveBase(TaskBase):
         self.publisher = self.node.create_publisher(MarkerArray, "markers", 10)
         self.pose_publisher = self.node.create_publisher(
             PoseArray, "origin_pose", 10)
+        self.join_state_pub = self.node.create_publisher(
+            JointState, "/ik/joint_states", 10)
+        self.tf_broadcaster = TransformBroadcaster(self.node)
+
         self.base_index = self.robot.pin_robot.model.getFrameId("base_link")
         self.initialized = False
         self.num_faces = 4
@@ -328,7 +336,8 @@ class TaskMoveBase(TaskBase):
 
         base_pose = self.robot.pin_robot.data.oMf[self.base_index]
         base_trajectory = PieceWiseLinearPosition()
-        base_trajectory.add(np.array([base_pose.translation[2]]), 0.0)
+        base_trajectory.add(
+            np.array([origin_pose.actInv(base_pose).translation[2]]), 0.0)
         base_trajectory.add(np.array([0.25]), time)
 
         base_linear_motion = EEFPositionMotion(
@@ -375,8 +384,30 @@ class TaskMoveBase(TaskBase):
             self.motions.append(eef_motion)
             self.motions_dim = self.motions_dim + eef_motion.dim
 
+        q_final = np.copy(self.estimator.estimated_q)
+        success = get_end_of_motion(self.robot.pin_robot.model,
+                                    self.friction_cones, self.motions, q_final)
+        self.publish_ik(t, q_final)
         self.num_contacts = len(self.friction_cones)
         self.init_qp()
+
+    def publish_ik(self, t,  q_final):
+        joint_state = JointState()
+        joint_state.header.stamp.sec = math.floor(t)
+        joint_state.header.stamp.nanosec = math.floor((t-math.floor(t))*1e9)
+        joint_state.name = self.robot.joint_names
+        joint_state.position = q_final[7:].tolist()
+        self.join_state_pub.publish(joint_state)
+        world_T_base = TransformStamped()
+        world_T_base.header.stamp = joint_state.header.stamp
+        world_T_base.header.frame_id = "world"
+        world_T_base.child_frame_id = "ik/base_link"
+        world_T_base.transform.translation = ToVector(q_final[0:3])
+        world_T_base.transform.rotation.w = q_final[6]
+        world_T_base.transform.rotation.x = q_final[3]
+        world_T_base.transform.rotation.y = q_final[4]
+        world_T_base.transform.rotation.z = q_final[5]
+        self.tf_broadcaster.sendTransform(world_T_base)
 
     def init_qp(self):
         self.controller = WholeBodyController(
@@ -423,20 +454,20 @@ class TaskMoveBase(TaskBase):
             )
             tau = self.robot.pin_robot.data.nle[6:] - self.control
             f = np.matmul(
-                np.linalg.inv(jacobian[0:3, joint + 2: joint + 5]),
+                np.linalg.inv(jacobian[0:3, joint + 2: joint + 5]).T,
                 tau[joint - 4: joint - 1],
             )
             sigma_t = 0.1 * np.sqrt(2)
 
-            sigma_f = 1.5 * np.sqrt(2)
+            sigma_f = 0.2 * np.sqrt(2)
             sigma_v = 0.2 * np.sqrt(2)
             v = np.dot(np.array([0, 0, 1]), vel)
             f = np.dot(np.array([0, 0, 1]), f)
             p = (
                 0.5
-                * (1 + erf(t - self.end_times[contact]) / sigma_t)
+                * (1 + erf((t - self.end_times[contact]) / sigma_t))
                 * (1 - erf(np.abs(v) / sigma_v))
-                * (erf(np.abs(f) / sigma_f))
+                * 0.5 * (1 + erf((f-0.5) / sigma_f))
             )
             if p > 0.25:
                 finished = True
