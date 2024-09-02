@@ -8,6 +8,7 @@ Panels:
         - /Status1
         - /RobotModel1
         - /PoseArray2
+        - /RobotModel2
       Splitter Ratio: 0.5
     Tree Height: 866
   - Class: rviz_common/Selection
@@ -51,7 +52,7 @@ Visualization Manager:
       Value: true
     - Alpha: 1
       Class: rviz_default_plugins/RobotModel
-      Collision Enabled: false
+      Collision Enabled: true
       Description File: ""
       Description Source: Topic
       Description Topic:
@@ -155,12 +156,14 @@ Visualization Manager:
       TF Prefix: ""
       Update Interval: 0
       Value: true
-      Visual Enabled: true
+      Visual Enabled: false
     - Class: rviz_default_plugins/MarkerArray
       Enabled: true
       Name: MarkerArray
       Namespaces:
-        "": true
+        com: true
+        eef: true
+        next_wcm: true
         wcm: true
       Topic:
         Depth: 5
@@ -235,6 +238,32 @@ Visualization Manager:
         Reliability Policy: Reliable
         Value: /origin_pose
       Value: true
+    - Alpha: 0.5
+      Class: rviz_default_plugins/RobotModel
+      Collision Enabled: false
+      Description File: ""
+      Description Source: Topic
+      Description Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: ""
+      Enabled: true
+      Links:
+        All Links Enabled: true
+        Expand Joint Details: false
+        Expand Link Details: false
+        Expand Tree: false
+        Link Tree Style: ""
+      Mass Properties:
+        Inertia: false
+        Mass: false
+      Name: RobotModel
+      TF Prefix: ""
+      Update Interval: 0
+      Value: true
+      Visual Enabled: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
@@ -296,10 +325,10 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.30039817094802856
+      Pitch: 0.1553981602191925
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 1.4053981304168701
+      Yaw: 6.148582935333252
     Saved: ~
 Window Geometry:
   Displays:
