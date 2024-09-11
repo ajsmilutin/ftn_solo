@@ -18,7 +18,7 @@ def get_trajectory_marker(trajectory, namespace):
     marker.scale.x = 0.005
     marker.scale.y = 0.0075
     marker.scale.z = 0.01
-    times = np.linspace(0, trajectory.duration(), 20)
+    times = np.linspace(0, 1.5*trajectory.duration(), 20)
     delta_t = times[1] - times[0]
     marker.id = 0
     marker.ns = namespace
