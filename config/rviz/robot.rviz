@@ -7,6 +7,10 @@ Panels:
         - /Global Options1
         - /Status1
         - /RobotModel1
+        - /MarkerArray1
+        - /MarkerArray1/Namespaces1
+        - /MarkerArray2
+        - /MarkerArray3
         - /PoseArray2
         - /RobotModel2
       Splitter Ratio: 0.5
@@ -161,10 +165,16 @@ Visualization Manager:
       Enabled: true
       Name: MarkerArray
       Namespaces:
-        com: true
+        com: false
         eef: true
-        next_wcm: true
-        wcm: true
+        wcm_0: false
+        wcm_1: false
+        wcm_2: false
+        wcm_com: true
+        wct_0: false
+        wct_1: false
+        wct_2: false
+        wct_com: false
       Topic:
         Depth: 5
         Durability Policy: Volatile
@@ -248,19 +258,100 @@ Visualization Manager:
         Durability Policy: Volatile
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: ""
+        Value: /robot_description
       Enabled: true
       Links:
         All Links Enabled: true
         Expand Joint Details: false
         Expand Link Details: false
         Expand Tree: false
-        Link Tree Style: ""
+        FL_FOOT:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        FL_LOWER_LEG:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        FL_SHOULDER:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        FL_UPPER_LEG:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        FR_FOOT:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        FR_LOWER_LEG:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        FR_SHOULDER:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        FR_UPPER_LEG:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        HL_FOOT:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        HL_LOWER_LEG:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        HL_SHOULDER:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        HL_UPPER_LEG:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        HR_FOOT:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        HR_LOWER_LEG:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        HR_SHOULDER:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        HR_UPPER_LEG:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        Link Tree Style: Links in Alphabetic Order
+        base_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
       Mass Properties:
         Inertia: false
         Mass: false
       Name: RobotModel
-      TF Prefix: ""
+      TF Prefix: ik
       Update Interval: 0
       Value: true
       Visual Enabled: true
@@ -310,7 +401,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 0.9317200183868408
+      Distance: 0.9847052097320557
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -325,10 +416,10 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.1553981602191925
+      Pitch: 0.46539759635925293
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 6.148582935333252
+      Yaw: 4.333580493927002
     Saved: ~
 Window Geometry:
   Displays:
