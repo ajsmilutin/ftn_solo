@@ -1,3 +1,10 @@
+mujoco:
+  use_gui: true
+  start_paused: false
+  fixed: false
+  # environment: environments/plane.mjcf
+  environments_package: ftn_solo
+
 poses:
   zero_pose:
     [ 0.0, 0.0, 0.0,
@@ -109,201 +116,292 @@ cartesian_controller:
   friction_cutoff: 0.1
   max_control: 1.8  
 
-# crawl:
-#   - motions: []  
-#     duration: 2
-#   - motions:  
-#     - eef: 10
-#       position: [0.26, 0.14, 0.0]
-#       orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
-#     duration: 2
-#   - motions:  
-#     - eef: 18
-#       position: [0.26, -0.14, 0]
-#       orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
-#     duration: 2    
-#   - motions:  
-#     - eef: 34
-#       position: [-0.06, -0.14, 0]
-#       orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
-#     duration: 2    
-#   - motions:  
-#     - eef: 26
-#       position: [-0.06, 0.14, 0]
-#       orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
-#     duration: 2    
-#   - motions:  
-#     - eef: 10
-#       position: [0.36, 0.14, 0]
-#       orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
-#     duration: 2
-#   - motions:  
-#     - eef: 18
-#       position: [0.36, -0.14, 0]
-#       orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
-#     duration: 2    
-#   - motions:  
-#     - eef: 34
-#       position: [0.04, -0.14, 0]
-#       orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
-#     duration: 2    
-#   - motions:  
-#     - eef: 26
-#       position: [0.04, 0.14, 0]
-#       orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
-#     duration: 2    
-#   - motions:  
-#     - eef: 10
-#       position: [0.46, 0.14, 0]
-#       orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
-#     duration: 2
-#   - motions:  
-#     - eef: 18
-#       position: [0.46, -0.14, 0]
-#       orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
-#     duration: 2    
-#   - motions:  
-#     - eef: 34
-#       position: [0.14, -0.14, 0]
-#       orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
-#     duration: 2    
-#   - motions:  
-#     - eef: 26
-#       position: [0.14, 0.14, 0]
-#       orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
-#     duration: 2    
-#   - motions:  
-#     - eef: 10
-#       position: [0.56, 0.14, 0]
-#       orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
-#     duration: 2
-#   - motions:  
-#     - eef: 18
-#       position: [0.56, -0.14, 0]
-#       orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
-#     duration: 2    
-#   - motions:  
-#     - eef: 34
-#       position: [0.24, -0.14, 0]
-#       orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
-#     duration: 2    
-#   - motions:  
-#     - eef: 26
-#       position: [0.24, 0.14, 0]
-#       orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
-#     duration: 2    
-#   - motions:  
-#     - eef: 10
-#       position: [0.66, 0.14, 0]
-#       orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
-#     duration: 2
-#   - motions:  
-#     - eef: 18
-#       position: [0.66, -0.14, 0]
-#       orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
-#     duration: 2    
-#   - motions:  
-#     - eef: 34
-#       position: [0.34, -0.14, 0]
-#       orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
-#     duration: 2    
-#   - motions:  
-#     - eef: 26
-#       position: [0.34, 0.14, 0]
-#       orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
-#     duration: 2    
-
 crawl:
-  - motions: []  
-    duration: 2
-  - motions:  
-    - eef: 10
-      position: [0.14, 0.14, 0.0]
-      orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
-    duration: 2
-  - motions:  
-    - eef: 18
-      position: [0.14, -0.14, 0]
-      orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
-    duration: 2    
-  - motions:  
-    - eef: 34
-      position: [-0.14, -0.14, 0]
-      orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
-    duration: 2    
-  - motions:  
-    - eef: 26
-      position: [-0.14, 0.14, 0]
-      orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
-    duration: 2    
-    
-  - motions:  
-    - eef: 10
-      position: [0.051244, 0.19124, 0.0]
-      orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
-    duration: 2
-  - motions:  
-    - eef: 18
-      position: [0.19124, -0.051244, 0]
-      orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
-    duration: 2    
-  - motions:  
-    - eef: 34
-      position: [-0.051244, -0.19124, 0.0]
-      orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
-    duration: 2    
-  - motions:  
-    - eef: 26
-      position: [-0.19124, 0.051244, 0]
-      orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
-    duration: 2    
-
-
-  - motions:  
-    - eef: 10
-      position: [-0.051244, 0.19124, 0.0]
-      orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
-    duration: 2
-  - motions:  
-    - eef: 18
-      position: [0.19124, 0.051244, 0]
-      orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
-    duration: 2    
-  - motions:  
-    - eef: 34
-      position: [0.051244, -0.19124, 0.0]
-      orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
-    duration: 2    
-  - motions:  
-    - eef: 26
-      position: [-0.19124, -0.051244, 0]
-      orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
-    duration: 2    
-
+  # - motions: []  
+  #   duration: 10
+  # - motions:  
+  #   - eef: 10
+  #     position: [0.21, 0.14, 0.0]
+  #     orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
+  #   duration: 10
+  # - motions:  
+  #   - eef: 34
+  #     position: [-0.11, -0.14, 0]
+  #     orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
+  #   duration: 10    
+  # - motions:  
+  #   - eef: 18
+  #     position: [0.26, -0.14, 0]
+  #     orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
+  #   duration: 10    
+  # - motions:  
+  #   - eef: 26
+  #     position: [-0.06, 0.14, 0]
+  #     orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
+  #   duration: 10    
 
   # - motions:  
   #   - eef: 10
-  #     position: [-0.14, 0.14, 0.0]
+  #     position: [0.31, 0.14, 0.0]
   #     orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
-  #   duration: 2
-  # - motions:  
-  #   - eef: 18
-  #     position: [0.14, 0.14, 0]
-  #     orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
-  #   duration: 2    
+  #   duration: 10
   # - motions:  
   #   - eef: 34
-  #     position: [0.14, -0.14, 0]
+  #     position: [-0.01, -0.14, 0]
   #     orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
-  #   duration: 2    
+  #   duration: 10    
+  # - motions:  
+  #   - eef: 18
+  #     position: [0.36, -0.14, 0]
+  #     orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
+  #   duration: 10    
   # - motions:  
   #   - eef: 26
-  #     position: [-0.14, -0.14, 0]
+  #     position: [0.04, 0.14, 0]
   #     orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
-  #   duration: 2       
+  #   duration: 10    
+
+  # - motions:  
+  #   - eef: 10
+  #     position: [0.41, 0.14, 0.0]
+  #     orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
+  #   duration: 10
+  # - motions:  
+  #   - eef: 34
+  #     position: [0.09, -0.14, 0]
+  #     orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
+  #   duration: 10    
+  # - motions:  
+  #   - eef: 18
+  #     position: [0.46, -0.14, 0]
+  #     orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
+  #   duration: 10    
+  # - motions:  
+  #   - eef: 26
+  #     position: [0.14, 0.14, 0]
+  #     orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
+  #   duration: 10     
+
+  # - motions:  
+  #   - eef: 10
+  #     position: [0.51, 0.14, 0.0]
+  #     orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
+  #   duration: 10
+  # - motions:  
+  #   - eef: 34
+  #     position: [0.19, -0.14, 0]
+  #     orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
+  #   duration: 10    
+  # - motions:  
+  #   - eef: 18
+  #     position: [0.56, -0.14, 0]
+  #     orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
+  #   duration: 10    
+  # - motions:  
+  #   - eef: 26
+  #     position: [0.24, 0.14, 0]
+  #     orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
+  #   duration: 10   
+  # - motions:  
+  #   - eef: 10
+  #     position: [0.56, 0.14, 0.0]
+  #     orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
+  #   duration: 10
+  # - motions:  
+  #   - eef: 34
+  #     position: [0.24, -0.14, 0]
+  #     orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
+  #   duration: 10             
+    
+  # - motions: []
+  #   duration: 10
+
+  # - motions: []
+  #   duration: 10
+
+
+crawl:
+  - motions: []  
+    duration: 5
+  - motions:  
+    - eef: 10
+      position: [0.26, 0.14, 0.0]
+      orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
+    duration: 5
+  - motions:  
+    - eef: 18
+      position: [0.26, -0.14, 0]
+      orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
+    duration: 5    
+  - motions:  
+    - eef: 34
+      position: [-0.06, -0.14, 0]
+      orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
+    duration: 5    
+  - motions:  
+    - eef: 26
+      position: [-0.06, 0.14, 0]
+      orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
+    duration: 5    
+  - motions:  
+    - eef: 10
+      position: [0.36, 0.14, 0]
+      orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
+    duration: 5
+  - motions:  
+    - eef: 18
+      position: [0.36, -0.14, 0]
+      orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
+    duration: 5    
+  - motions:  
+    - eef: 34
+      position: [0.04, -0.14, 0]
+      orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
+    duration: 5    
+  - motions:  
+    - eef: 26
+      position: [0.04, 0.14, 0]
+      orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
+    duration: 5    
+  - motions:  
+    - eef: 10
+      position: [0.46, 0.14, 0]
+      orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
+    duration: 5
+  - motions:  
+    - eef: 18
+      position: [0.46, -0.14, 0]
+      orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
+    duration: 5    
+  - motions:  
+    - eef: 34
+      position: [0.14, -0.14, 0]
+      orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
+    duration: 5    
+  - motions:  
+    - eef: 26
+      position: [0.14, 0.14, 0]
+      orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
+    duration: 5    
+  - motions:  
+    - eef: 10
+      position: [0.56, 0.14, 0]
+      orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
+    duration: 5
+  - motions:  
+    - eef: 18
+      position: [0.56, -0.14, 0]
+      orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
+    duration: 5    
+  - motions:  
+    - eef: 34
+      position: [0.24, -0.14, 0]
+      orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
+    duration: 5    
+  - motions:  
+    - eef: 26
+      position: [0.24, 0.14, 0]
+      orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
+    duration: 5    
+  - motions:  
+    - eef: 10
+      position: [0.66, 0.14, 0]
+      orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
+    duration: 5
+  - motions:  
+    - eef: 18
+      position: [0.66, -0.14, 0]
+      orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
+    duration: 5    
+  - motions:  
+    - eef: 34
+      position: [0.34, -0.14, 0]
+      orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
+    duration: 5    
+  - motions:  
+    - eef: 26
+      position: [0.34, 0.14, 0]
+      orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
+    duration: 5    
 
   - motions: []
-    duration: 2
+    duration: 5
 
   - motions: []
-    duration: 2
+    duration: 5
+
+# rotacija
+# crawl:
+#   - motions: []  
+#     duration: 5
+   
+#   - motions:  
+#     - eef: 10
+#       position: [0.058564, 0.218564, 0.0]
+#       orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
+#     duration: 5
+#   - motions:  
+#     - eef: 18
+#       position: [0.218564, -0.058564, 0]
+#       orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
+#     duration: 5    
+#   - motions:  
+#     - eef: 34
+#       position: [-0.058564, -0.218564, 0.0]
+#       orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
+#     duration: 5    
+#   - motions:  
+#     - eef: 26
+#       position: [-0.218564, 0.058564, 0]
+#       orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
+#     duration: 5    
+
+
+#   - motions:  
+#     - eef: 10
+#       position: [-0.058564, 0.218564, 0.0]
+#       orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
+#     duration: 5
+#   - motions:  
+#     - eef: 18
+#       position: [0.218564, 0.058564, 0]
+#       orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
+#     duration: 5    
+#   - motions:  
+#     - eef: 34
+#       position: [0.058564, -0.218564, 0.0]
+#       orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
+#     duration: 5    
+#   - motions:  
+#     - eef: 26
+#       position: [-0.218564, -0.058564, 0]
+#       orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
+#     duration: 5    
+
+
+#   - motions:  
+#     - eef: 10
+#       position: [-0.16, 0.16, 0.0]
+#       orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
+#     duration: 5
+#   - motions:  
+#     - eef: 18
+#       position: [0.16, 0.16, 0]
+#       orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
+#     duration: 5    
+#   - motions:  
+#     - eef: 34
+#       position: [0.16, -0.16, 0]
+#       orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
+#     duration: 5    
+#   - motions:  
+#     - eef: 26
+#       position: [-0.16, -0.16, 0]
+#       orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
+#     duration: 5       
+
+#   - motions: []
+#     duration: 5
+
+#   - motions: []
+#     duration: 5

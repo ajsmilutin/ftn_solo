@@ -14,6 +14,7 @@ setup(
         (os.path.join('share', package_name), ['package.xml']),
         (os.path.join('share', package_name), glob('launch/*launch.[pxy][yma]*')),
         (os.path.join('share', package_name,'config', 'rviz'), glob('config/rviz/*.rviz')),
+        (os.path.join('share', package_name,'environments'), glob('environments/*.mjcf')),
         (os.path.join('share', package_name,'config', 'tasks'), glob('config/tasks/*.yaml'))
     ],
     install_requires=['setuptools'],
