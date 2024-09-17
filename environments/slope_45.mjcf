@@ -2,8 +2,10 @@
 
 <mujoco>
     <worldbody>
-        <light pos="0 0 2"/>
-        <geom type="plane" size="0.6 0.6 0.1" material="grid"/>
-        <geom type="plane" size="0.2828 0.6 0.1" pos="0.4 0 0.2" euler="0 -0.78539 0" material="flat"/>
+        <light pos="0 0 1.5"/>
+        <light pos="1 0 1.85"/>
+        <geom type="plane" size="0.6 0.6 0.0001" pos="0.0 0 0" material="grid"/>
+        <geom type="box" size="0.1775 0.6 0.01" pos="0.33 0 0.116" euler="0 -0.78539 0" material="flat"/>
+        <geom type="box" size="0.6 0.6 0.01" pos="1.06 0 0.25" material="flat"/>
     </worldbody>
 </mujoco>
