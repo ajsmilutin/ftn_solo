@@ -170,7 +170,6 @@ def compute_wcm(friction_cones):
     points = np.vstack([upsilon[0:2, :], gamma]).T
     start = tm.time()
     hull = ConvexHull(points, qhull_options="Qx")
-    print("CHCHCHCHC {}".format(tm.time()-start))
     surfaces = hull.equations
     return -np.column_stack([surfaces[:, 0:2],
                             surfaces[:, 5],
