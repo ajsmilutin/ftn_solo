@@ -41,6 +41,7 @@ from ftn_solo_control import (
     intersect
 )
 
+
 class MotionData:
     def __init__(self, config):
         self.eef_index = config["eef"]
@@ -70,7 +71,7 @@ def parse_sequence(config):
 
 
 class TaskMoveBase(TaskBase):
-    states = ["start", "move_base"]
+    states = ["start", "move_base", "move_eef"]
 
     def __init__(self, num_joints, robot_type, config_yaml) -> None:
         self.step = 0
@@ -87,13 +88,23 @@ class TaskMoveBase(TaskBase):
             self.config["on_start"], self.num_joints, self.poses)
         self.machine = Machine(
             model=self, states=TaskMoveBase.states, initial="start")
+
         self.machine.add_transition(
             "tick", "start", "move_base", conditions="following_spline"
         )
         self.machine.add_transition(
-            "tick", "move_base", "move_base", conditions="moving_base"
+            "tick", "move_base", "move_eef", conditions="moving_base")
+
+        self.machine.add_transition(
+            "tick", "move_base", "move_base", conditions="always_false"
         )
+        self.machine.add_transition(
+            "tick", "move_eef", "move_base", conditions="moving_eef"
+        )
+
         self.machine.on_enter_move_base(self.compute_base_trajectory)
+        self.machine.on_enter_move_eef(self.update_eef_trajectory)
+
         self.node = Node("node")
         self.estimator = None
         self.publisher = self.node.create_publisher(MarkerArray, "markers", 10)
@@ -104,10 +115,13 @@ class TaskMoveBase(TaskBase):
         self.tf_broadcaster = TransformBroadcaster(self.node)
         self.base_index = self.robot.pin_robot.model.getFrameId("base_link")
         self.initialized = False
-        self.num_faces = 6
+        self.num_faces = 8
+        self.friction_coefficient = 0.9
         self.friction_cones = dict()
         self.sequence = parse_sequence(self.config["crawl"])
         self.phase = -1
+        self.base_motions = MotionsVector()
+        self.eef_motions = MotionsVector()
         self.motions = MotionsVector()
         self.end_times = {}
         self.ik_data = pin.Data(self.robot.pin_robot.model)
@@ -150,12 +164,11 @@ class TaskMoveBase(TaskBase):
             for motion in self.sequence[phase].motions:
                 self.estimator.set_fixed(
                     motion.eef_index, motion.pose.rotation)
-
-            if self.phase < len(self.sequence):
-                for motion in self.sequence[self.phase].motions:
-                    self.estimator.un_fix(motion.eef_index)
         self.friction_cones = self.estimator.get_friction_cones(
-            0.8, self.num_faces)
+            self.friction_coefficient, self.num_faces)
+
+    def always_false(self, *args, **kwargs):
+        return False
 
     def publish_wcm_markers(self, wcm_list, next_com, prefix="wcm_"):
         for cone in self.friction_cones:
@@ -204,16 +217,12 @@ class TaskMoveBase(TaskBase):
 
     def compute_com_xy(self, publish_markers=True):
         wcm_2d = get_projected_wcm(self.friction_cones)
+
         self.next_friction_cones = FrictionConeMap()
         for f in self.friction_cones:
             self.next_friction_cones[f.key()] = f.data()
         if self.phase < len(self.sequence):
             for motion in self.sequence[self.phase].motions:
-                self.next_friction_cones[motion.eef_index] = FrictionCone(
-                    0.8, self.num_faces, motion.pose
-                )
-        if self.phase + 1 < len(self.sequence):
-            for motion in self.sequence[self.phase + 1].motions:
                 del self.next_friction_cones[motion.eef_index]
         next_wcm_2d = get_projected_wcm(self.next_friction_cones)
         return self.compute_com_pos(wcm_2d, next_wcm_2d, publish_markers=publish_markers, prefix="wcm_")
@@ -223,29 +232,47 @@ class TaskMoveBase(TaskBase):
             self.robot.pin_robot.model, self.ik_data, self.friction_cones, self.max_torque)
         next_wcm_2d = get_projected_wcm_with_torque(
             self.robot.pin_robot.model, self.ik_data, self.next_friction_cones, self.max_torque)
-
         return self.compute_com_pos(wcm_2d, next_wcm_2d, publish_markers=publish_markers,  prefix="wct_")
 
     def compute_com_pos(self,  wcm_2d, next_wcm_2d, publish_markers, prefix):
-        intersection = intersect(wcm_2d, next_wcm_2d)
+        intersection = next_wcm_2d
         C = np.copy(intersection.equations())
-        d = -C[:, 2]
-        C[:, 2] = 1
+        d = 0.03 - C[:, 2]
+        C = C[:, :2]
+        H = np.eye(2)
         qp = proxsuite.proxqp.dense.QP(
-            3, 0, C.shape[0], False, proxsuite.proxqp.dense.HessianType.Zero
-        )
+            2, 0, C.shape[0], False, proxsuite.proxqp.dense.HessianType.Dense)
+        g = - np.copy(self.robot.pin_robot.data.com[0][:2])
+
         qp.init(
-            np.zeros((3, 3)),
-            np.array([0, 0, 1]),
+            H,
+            g,
             None,
             None,
             C,
             d,
-            1e20 * np.ones(C.shape[0]),
+            1e20 * np.ones(C.shape[0])
         )
         qp.settings.initial_guess = proxsuite.proxqp.InitialGuess.WARM_START
-        x0 = np.zeros((3))
-        x0[:2] = np.mean(np.column_stack(intersection.points), axis=1)
+        x0 = np.mean(np.column_stack(intersection.points), axis=1)
+        # C = np.copy(intersection.equations())
+        # d = 0.02 - C[:, 2]
+        # C[:, 2] = 1
+        # qp = proxsuite.proxqp.dense.QP(
+        #     3, 0, C.shape[0], False, proxsuite.proxqp.dense.HessianType.Zero
+        # )
+        # qp.init(
+        #     np.zeros((3, 3)),
+        #     np.array([0, 0, 1]),
+        #     None,
+        #     None,
+        #     C,
+        #     d,
+        #     1e20 * np.ones(C.shape[0]),
+        # )
+        # qp.settings.initial_guess = proxsuite.proxqp.InitialGuess.WARM_START
+        # x0 = np.zeros((3))
+        # x0[:2] = np.mean(np.column_stack(intersection.points), axis=1)
         qp.solve(x0, None, None)
         pos = qp.results.x[:2]
         if publish_markers:
@@ -339,18 +366,19 @@ class TaskMoveBase(TaskBase):
         com_trajectory.add(np.copy(self.robot.pin_robot.data.com[0][:2]), 0.0)
         com_trajectory.add(pos, time)
         com_motion = COMMotion(
-            np.array([True, True, False]), pin.SE3.Identity(), 200, 50)
+            np.array([True, True, False]), pin.SE3.Identity(), 200, 100)
         com_motion.set_trajectory(com_trajectory)
 
         base_pose = self.robot.pin_robot.data.oMf[self.base_index]
         base_trajectory = PieceWiseLinearPosition()
         base_trajectory.add(
             np.array([origin_pose.actInv(base_pose).translation[2]]), 0.0)
-        base_trajectory.add(np.array([0.25]), time)
+        height = 0.25 - min(self.phase, 3)*0.02
+        base_trajectory.add(np.array([height*base_pose.rotation[2, 2]]), time)
 
         base_linear_motion = EEFPositionMotion(
             self.base_index, np.array(
-                [False, False, True], dtype=bool), origin_pose, 200, 50
+                [False, False, True], dtype=bool), origin_pose, 200, 100
         )
         base_linear_motion.set_trajectory(base_trajectory)
 
@@ -360,18 +388,18 @@ class TaskMoveBase(TaskBase):
         rotation_trajectory.add(origin_pose.rotation, time)
         base_angular_motion.set_trajectory(rotation_trajectory)
 
-        self.motions = MotionsVector()
-        self.motions.append(com_motion)
-        self.motions.append(base_linear_motion)
-        self.motions.append(base_angular_motion)
+        self.base_motions = MotionsVector()
+        self.base_motions.append(com_motion)
+        self.base_motions.append(base_linear_motion)
+        self.base_motions.append(base_angular_motion)
 
-        self.motions_dim = 0
-        for motion in self.motions:
+        for motion in self.base_motions:
             motion.trajectory.set_start(t)
-            self.motions_dim = self.motions_dim + motion.dim
         # create foot trajectory
+
         self.end_times = {}
 
+        self.eef_motions = MotionsVector()
         for motion in self.sequence[self.phase].motions:
             eef_motion = EEFPositionMotion(motion.eef_index, np.array(
                 [True, True, True], dtype=bool), pin.SE3.Identity(), 2500, 500)
@@ -381,17 +409,23 @@ class TaskMoveBase(TaskBase):
             radius = 0.018
             end_position = motion.pose.translation + \
                 radius*motion.pose.rotation[:, 2]
-            seventy_five = 0.25 * position + 0.75 * end_position
-            seventy_five[2] = seventy_five[2] + 0.03
-            eef_trajectory.add(seventy_five, 0.75 * time)
-            eef_trajectory.add(end_position, time)
+            seventy_five = 0.2 * position + 0.8 * end_position
+            seventy_five = seventy_five + 0.03*motion.pose.rotation[:, 2]
+            eef_trajectory.add(seventy_five, 0.75 * time/2)
+            eef_trajectory.add(end_position, time/2)
             eef_trajectory.set_start(t)
             self.publisher.publish(
                 get_trajectory_marker(eef_trajectory,  "eef"))
             eef_motion.set_trajectory(eef_trajectory)
             self.end_times[motion.eef_index] = eef_trajectory.end_time()
-            self.motions.append(eef_motion)
-            self.motions_dim = self.motions_dim + eef_motion.dim
+            self.eef_motions.append(eef_motion)
+
+        self.motions = MotionsVector()
+        for bm in self.base_motions:
+            self.motions.append(bm)
+        for em in self.eef_motions:
+            self.motions.append(em)
+
         q_final = np.copy(self.estimator.estimated_q)
         success = get_end_of_motion(self.robot.pin_robot.model, self.ik_data,
                                     self.friction_cones, self.motions, q_final)
@@ -406,6 +440,26 @@ class TaskMoveBase(TaskBase):
         com_trajectory.set_start(t)
         com_motion.set_trajectory(com_trajectory)
         self.num_contacts = len(self.friction_cones)
+        self.init_qp()
+
+    def update_eef_trajectory(self, t, q, qv, sensors):
+        for motion in self.sequence[self.phase].motions:
+            self.estimator.un_fix(motion.eef_index)
+
+        self.friction_cones = self.estimator.get_friction_cones(
+            self.friction_coefficient, self.num_faces)
+
+        self.end_times = {}
+        i = 0
+        self.motions = MotionsVector()
+        for bm in self.base_motions:
+            self.motions.append(bm)
+        for em in self.eef_motions:
+            em.trajectory.set_start(t)
+            self.motions.append(em)
+            self.end_times[self.sequence[self.phase].motions[i]
+                           .eef_index] = em.trajectory.end_time()
+            i = i+1
         self.init_qp()
 
     def publish_ik(self, t,  q_final):
@@ -427,8 +481,10 @@ class TaskMoveBase(TaskBase):
         self.tf_broadcaster.sendTransform(world_T_base)
 
     def init_qp(self):
+        eef = 0 if len(
+            self.sequence[self.phase].motions) == 0 else self.sequence[self.phase].motions[0].eef_index
         self.controller = WholeBodyController(
-            self.estimator, self.friction_cones, self.max_torque)
+            self.estimator, self.friction_cones, self.max_torque, eef)
 
     def following_spline(self, t, q, qv, sensors):
         self.ref_position = self.trajectory(t)
@@ -440,59 +496,64 @@ class TaskMoveBase(TaskBase):
         return t >= self.transition_end
 
     def moving_base(self, t, q, qv, sensors):
-        finished = len(
-            self.end_times) == 0 and self.motions[0].trajectory.finished
-        # estimate contacts
-        contact_existing = len(self.end_times) > 0
-        if contact_existing:
-            for motion in self.sequence[self.phase].motions:
-                pose = get_touching_pose(
-                    self.robot.pin_robot.model,
-                    self.robot.pin_robot.data,
-                    motion.eef_index,
-                    np.array([0, 0, 1]),
-                )
-                placement = get_touching_placement(
-                    self.robot.pin_robot.model, self.robot.pin_robot.data, motion.eef_index, pose
-                )
-                joint = self.robot.pin_robot.model.frames[motion.eef_index].parentJoint
-                vel = pin.getFrameVelocity(
-                    self.robot.pin_robot.model,
-                    self.robot.pin_robot.data,
-                    joint,
-                    placement,
-                    pin.ReferenceFrame.LOCAL_WORLD_ALIGNED,
-                ).linear
-                jacobian = pin.getFrameJacobian(
-                    self.robot.pin_robot.model,
-                    self.robot.pin_robot.data,
-                    joint,
-                    placement,
-                    pin.ReferenceFrame.LOCAL_WORLD_ALIGNED,
-                )
-                tau = self.robot.pin_robot.data.nle[6:] - self.control
-                f = np.matmul(
-                    np.linalg.inv(jacobian[0:3, joint + 2: joint + 5]).T,
-                    tau[joint - 4: joint - 1],
-                )
-                sigma_t = 0.1 * np.sqrt(2)
-
-                sigma_f = 0.2 * np.sqrt(2)
-                sigma_v = 0.2 * np.sqrt(2)
-                normal = motion.pose.rotation[:, 2]
-                v = np.dot(normal, vel)
-                f = np.dot(normal, f)
-                p = (
-                    0.5
-                    * (1 + erf((t - self.end_times[motion.eef_index]) / sigma_t))
-                    * (1 - erf(np.abs(v) / sigma_v))
-                    * 0.5 * (1 + erf((f-0.5) / sigma_f))
-                )
-                contact_existing = contact_existing and (p > 0.25)
-
+        finished = all(
+            motion.trajectory.finished for motion in self.base_motions)
         self.control = self.controller.compute(
-            t, self.robot.pin_robot.model, self.robot.pin_robot.data, self.estimator, self.motions)
-        return (finished or contact_existing) and (self.phase < len(self.sequence) - 1)
+            t, self.robot.pin_robot.model, self.robot.pin_robot.data, self.estimator, self.base_motions, self.control)
+        return finished and (self.phase < len(self.sequence) - 1)
+
+    def moving_eef(self, t, q, qv, sensors):
+        self.control = self.controller.compute(
+            t, self.robot.pin_robot.model, self.robot.pin_robot.data, self.estimator, self.motions, self.control)
+        result = self.check_contacts(t)
+        return result
+
+    def check_contacts(self, t):
+        contact_existing = True
+        for motion in self.sequence[self.phase].motions:
+            pose = get_touching_pose(
+                self.robot.pin_robot.model,
+                self.robot.pin_robot.data,
+                motion.eef_index,
+                motion.pose.rotation[:, 2])
+            placement = get_touching_placement(
+                self.robot.pin_robot.model, self.robot.pin_robot.data, motion.eef_index, pose
+            )
+            joint = self.robot.pin_robot.model.frames[motion.eef_index].parentJoint
+            vel = pin.getFrameVelocity(
+                self.robot.pin_robot.model,
+                self.robot.pin_robot.data,
+                joint,
+                placement,
+                pin.ReferenceFrame.LOCAL_WORLD_ALIGNED,
+            ).linear
+            jacobian = pin.getFrameJacobian(
+                self.robot.pin_robot.model,
+                self.robot.pin_robot.data,
+                joint,
+                placement,
+                pin.ReferenceFrame.LOCAL_WORLD_ALIGNED,
+            )
+            tau = self.robot.pin_robot.data.nle[6:] - self.control
+            f = np.matmul(
+                np.linalg.inv(jacobian[0:3, joint + 2: joint + 5]).T,
+                tau[joint - 4: joint - 1],
+            )
+            sigma_t = 0.1 * np.sqrt(2)
+
+            sigma_f = 0.2 * np.sqrt(2)
+            sigma_v = 0.2 * np.sqrt(2)
+            normal = motion.pose.rotation[:, 2]
+            v = np.dot(normal, vel)
+            f = np.dot(normal, f)
+            p = (
+                0.5
+                * (1 + erf((t - self.end_times[motion.eef_index]) / sigma_t))
+                * (1 - erf(np.abs(v) / sigma_v))
+                * 0.5 * (1 + erf((f-0.7) / sigma_f))
+            )
+            contact_existing = contact_existing and (p > 0.25)
+        return contact_existing
 
     def compute_control(self, t, q, qv, sensors):
         if self.estimator:

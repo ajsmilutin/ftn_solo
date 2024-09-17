@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+
+<mujoco>
+    <worldbody>
+        <light pos="0 0 2"/>
+        <light pos="1 0 1.85"/>
+        <geom type="plane" size="0.6 0.6 0.1" material="grid"/>
+        <geom type="box" size="0.145 0.6 0.01" pos="0.26383 0 0.12057" euler="0 -1.0471975512 0" material="flat"/>
+        <geom type="box" size="0.6 0.6 0.01" pos="0.9511 0 0.24" material="flat"/>
+    </worldbody>
+</mujoco>
