@@ -95,6 +95,7 @@ crawl:
       position: [0.26, 0.14, 0.06]
       orientation: [0.0,  -0.3826834, 0, 0.9238795 ] # x, y, z, w
     duration: 2
+    torso_height: 0.25
   - motions:  
     - eef: 18
       position: [0.26, -0.14, 0.06]
@@ -179,12 +180,20 @@ crawl:
 
   - motions:  
     - eef: 10
-      position: [0.50, 0.14, 0.26]
+      positions: 
+        - [0.41, 0.14, 0.29]
+        - [0.48, 0.14, 0.29]
+        - [0.50, 0.14, 0.26]
+      times: [0.3, 0.8, 1]
       orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
     duration: 2
   - motions:  
     - eef: 18
-      position: [0.50, -0.14, 0.26]
+      positions: 
+        - [0.41, -0.14, 0.29]
+        - [0.48, -0.14, 0.29]
+        - [0.50, -0.14, 0.26]
+      times: [0.3, 0.8, 1]
       orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
     duration: 2   
 
@@ -272,12 +281,20 @@ crawl:
     duration: 2     
   - motions:  
     - eef: 26
-      position: [0.50, 0.14, 0.26]
+      positions: 
+        - [0.41, 0.14, 0.29]
+        - [0.48, 0.14, 0.29]
+        - [0.50, 0.14, 0.26]
+      times: [0.3, 0.8, 1]
       orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
     duration: 2
   - motions:  
     - eef: 34
-      position: [0.50, -0.14, 0.26]
+      positions: 
+        - [0.41, -0.14, 0.29]
+        - [0.48, -0.14, 0.29]
+        - [0.50, -0.14, 0.26]
+      times: [0.3, 0.8, 1]
       orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
     duration: 2              
     
