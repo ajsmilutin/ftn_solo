@@ -7,12 +7,13 @@ from robot_properties_solo import Solo12Robot
 import pinocchio as pin
 from rclpy.node import Node
 from visualization_msgs.msg import MarkerArray, Marker
-from std_msgs.msg import ColorRGBA
+from std_msgs.msg import ColorRGBA, Float32
 from ftn_solo.utils.conversions import ToPoint, ToQuaternion
 from copy import deepcopy
 from ftn_solo.utils.trajectories import SplineData, PiecewiseLinear
 import proxsuite
 from ftn_solo.utils.types import FrictionCone
+import rclpy
 
 
 class Estimator:
@@ -116,6 +117,16 @@ class TaskMoveBase(TaskBase):
         self.initialized = False
         self.num_faces = 4
         self.friction_cones = dict()
+        self.subscriber = self.node.create_subscription(Float32,'acceleration_change', self.joy_callback, 10)
+        self.msg = 0.0
+        # rclpy.spin(self.node)
+
+    def joy_callback(self, msg):
+        if msg.data:
+            self.node.get_logger().info(str(msg.data))
+            self.msg = msg.data
+        else:
+            self.msg = 0.0
 
     def parse_poses(self, poses):
         self.poses = {}
@@ -175,12 +186,17 @@ class TaskMoveBase(TaskBase):
     def moving_base(self, t, q, qv):
         p, v, a = self.base_trajectory.get(t)
         Kp = 100
-        Kd = 20
-        ades = a + Kp * \
-            (p - self.estimator.estimated_q[:3]) + \
-            Kd * (v - self.estimator.estimated_qv[:3])
-        alphades = -100*pin.log(pin.Quaternion(
-            self.estimator.estimated_q[3:7]).matrix()) - 20*self.estimator.estimated_qv[3:6]
+        Kd = 50
+
+        rclpy.spin_once(self.node, timeout_sec=0.005)
+
+        ades = self.msg * a + Kp * (p - self.estimator.estimated_q[:3])  \
+            + Kd * (v - self.estimator.estimated_qv[:3])
+        alphades = -self.msg * a + (-Kp * \
+            pin.log(pin.Quaternion(self.estimator.estimated_q[3:7]).matrix()) - \
+            Kd * self.estimator.estimated_qv[3:6])
+
+
         dim = self.qp.model.dim
         n_eq = self.qp.model.n_eq
         nv = self.robot.pin_robot.nv
@@ -228,6 +244,7 @@ class TaskMoveBase(TaskBase):
             self.estimator.init(q, qv, sensors)
         self.estimator.estimate(t, q, qv, sensors)
 
+        # rclpy.spin_once(self.node)
         full_q = self.estimator.estimated_q
         full_qv = self.estimator.estimated_qv
         self.step = self.step+1
