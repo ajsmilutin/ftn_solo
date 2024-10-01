@@ -22,6 +22,23 @@ import xacro
 import os
 from ament_index_python.packages import get_package_share_directory
 
+import signal
+from contextlib import contextmanager
+
+class TimeoutException(Exception): pass
+
+@contextmanager
+def time_limit(seconds):
+    def signal_handler(signum, frame):
+        raise TimeoutException("Timed out!")
+    signal.signal(signal.SIGALRM, signal_handler)
+    signal.setitimer(signal.ITIMER_REAL,seconds)
+    try:
+        yield
+    finally:
+        signal.alarm(0)
+
+
 
 class Connector():
     def __init__(self, robot_version, logger, *args, **kwargs) -> None:
@@ -345,7 +362,6 @@ class ConnectorNode(Node):
                 self.config = yaml.safe_load(stream)
             except Exception as exc:
                 raise exc
-
         if hardware.lower() != "robot":
             use_gui = self.get_parameter(
                 'use_gui').get_parameter_value().bool_value
@@ -365,6 +381,9 @@ class ConnectorNode(Node):
                     robot_version, self.get_logger(), fixed=self.fixed, pos=pos, rpy=rpy)
         else:
             self.connector = RobotConnector(robot_version,  self.get_logger())
+            niceness = os.nice(0)
+            niceness = os.nice(-15-niceness)
+            self.get_logger().info("Setting niceness to {}".format(niceness))
 
         if task == 'joint_spline':
             self.task = TaskJointSpline(self.connector.num_joints(),
@@ -394,53 +413,59 @@ class ConnectorNode(Node):
                 continue
             position, velocity = self.connector.get_data()
             sensors = self.connector.get_sensor_readings()
+
             if self.time_publisher:
                 elapsed = self.clock.clock.sec + self.clock.clock.nanosec / 1e9
             else:
                 elapsed = (self.get_clock().now() - start).nanoseconds / 1e9
 
-            torques = self.task.compute_control(
-                elapsed, position, velocity, sensors)
-            self.connector.set_torques(torques)
-            if self.time_publisher:
-                self.clock.clock.nanosec += int(self.connector.dt * 1000000000)
-                self.clock.clock.sec += self.clock.clock.nanosec // 1000000000
-                self.clock.clock.nanosec = self.clock.clock.nanosec % 1000000000
-                self.time_publisher.publish(self.clock)
-            c += 1
-            if (c % 50 == 0):
-                if self.time_publisher:
-                    joint_state.header.stamp = self.clock.clock
-                else:
-                    joint_state.header.stamp = self.get_clock().now().to_msg()
-                joint_state.position = position.tolist()
-                joint_state.velocity = velocity.tolist()
-                joint_state.name = self.connector.joint_names
-                self.join_state_pub.publish(joint_state)
-                if hasattr(self.task, "estimator"):
-                    if self.task.estimator:
-                        transform.header.stamp = joint_state.header.stamp
-                        transform.header.frame_id = "world"
-                        transform.child_frame_id = "base_link"
-                        transform.transform.translation = ToVector(
-                            self.task.estimator.estimated_q[0:3])
-                        transform.transform.rotation.w = self.task.estimator.estimated_q[6]
-                        transform.transform.rotation.x = self.task.estimator.estimated_q[3]
-                        transform.transform.rotation.y = self.task.estimator.estimated_q[4]
-                        transform.transform.rotation.z = self.task.estimator.estimated_q[5]
-                        self.tf_broadcaster.sendTransform(transform)
-                elif "attitude" in sensors.keys():
-                    transform.header.stamp = joint_state.header.stamp
-                    transform.header.frame_id = "world"
-                    transform.child_frame_id = "base_link"
-                    if self.fixed:
-                        transform.transform.translation.z = 0.4
-                    transform.transform.rotation.w = sensors.imu_data.attitude[0]
-                    transform.transform.rotation.x = sensors.imu_data.attitude[1]
-                    transform.transform.rotation.y = sensors.imu_data.attitude[2]
-                    transform.transform.rotation.z = sensors.imu_data.attitude[3]
-                    self.tf_broadcaster.sendTransform(transform)
 
+            try:
+                with time_limit(0.1):
+                    torques = self.task.compute_control(
+                        elapsed, position, velocity, sensors)
+                    if self.time_publisher:
+                        self.clock.clock.nanosec += int(self.connector.dt * 1000000000)
+                        self.clock.clock.sec += self.clock.clock.nanosec // 1000000000
+                        self.clock.clock.nanosec = self.clock.clock.nanosec % 1000000000
+                        self.time_publisher.publish(self.clock)
+                    c += 1
+                    if (c % 50 == 0):
+                        if self.time_publisher:
+                            joint_state.header.stamp = self.clock.clock
+                        else:
+                            joint_state.header.stamp = self.get_clock().now().to_msg()
+                        joint_state.position = position.tolist()
+                        joint_state.velocity = velocity.tolist()
+                        joint_state.name = self.connector.joint_names
+                        self.join_state_pub.publish(joint_state)
+                        if hasattr(self.task, "estimator"):
+                            if self.task.estimator:
+                                transform.header.stamp = joint_state.header.stamp
+                                transform.header.frame_id = "world"
+                                transform.child_frame_id = "base_link"
+                                transform.transform.translation = ToVector(
+                                    self.task.estimator.estimated_q[0:3])
+                                transform.transform.rotation.w = self.task.estimator.estimated_q[6]
+                                transform.transform.rotation.x = self.task.estimator.estimated_q[3]
+                                transform.transform.rotation.y = self.task.estimator.estimated_q[4]
+                                transform.transform.rotation.z = self.task.estimator.estimated_q[5]
+                                self.tf_broadcaster.sendTransform(transform)
+                        elif "attitude" in sensors.keys():
+                            transform.header.stamp = joint_state.header.stamp
+                            transform.header.frame_id = "world"
+                            transform.child_frame_id = "base_link"
+                            if self.fixed:
+                                transform.transform.translation.z = 0.4
+                            transform.transform.rotation.w = sensors.imu_data.attitude[0]
+                            transform.transform.rotation.x = sensors.imu_data.attitude[1]
+                            transform.transform.rotation.y = sensors.imu_data.attitude[2]
+                            transform.transform.rotation.z = sensors.imu_data.attitude[3]
+                            self.tf_broadcaster.sendTransform(transform)
+            except TimeoutException as e:
+                print("Timed out!")
+
+            self.connector.set_torques(torques)
             self.connector.step()
 
 
