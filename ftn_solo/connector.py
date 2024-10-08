@@ -419,7 +419,6 @@ class ConnectorNode(Node):
             else:
                 elapsed = (self.get_clock().now() - start).nanoseconds / 1e9
 
-
             try:
                 with time_limit(0.1):
                     torques = self.task.compute_control(
@@ -440,7 +439,7 @@ class ConnectorNode(Node):
                         joint_state.name = self.connector.joint_names
                         self.join_state_pub.publish(joint_state)
                         if hasattr(self.task, "estimator"):
-                            if self.task.estimator:
+                            if self.task.estimator and self.task.estimator.initialized():
                                 transform.header.stamp = joint_state.header.stamp
                                 transform.header.frame_id = "world"
                                 transform.child_frame_id = "base_link"
