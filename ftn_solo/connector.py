@@ -362,6 +362,7 @@ class ConnectorNode(Node):
                 self.config = yaml.safe_load(stream)
             except Exception as exc:
                 raise exc
+
         if hardware.lower() != "robot":
             use_gui = self.get_parameter(
                 'use_gui').get_parameter_value().bool_value
@@ -373,6 +374,8 @@ class ConnectorNode(Node):
                 'pos').get_parameter_value().double_array_value
             rpy = self.get_parameter(
                 'rpy').get_parameter_value().double_array_value
+            # Can go lower if we set niceness
+            self.allowed_time = 0.025
             if hardware.lower() == 'mujoco':
                 self.connector = MujocoConnector(robot_version, self.get_logger(),
                                                  pos=pos, rpy=rpy, **self.config["mujoco"])
@@ -380,10 +383,11 @@ class ConnectorNode(Node):
                 self.connector = PybulletConnector(
                     robot_version, self.get_logger(), fixed=self.fixed, pos=pos, rpy=rpy)
         else:
-            self.connector = RobotConnector(robot_version,  self.get_logger())
             niceness = os.nice(0)
             niceness = os.nice(-15-niceness)
             self.get_logger().info("Setting niceness to {}".format(niceness))
+            self.allowed_time = 0.001
+            self.connector = RobotConnector(robot_version,  self.get_logger())
 
         if task == 'joint_spline':
             self.task = TaskJointSpline(self.connector.num_joints(),
@@ -420,7 +424,7 @@ class ConnectorNode(Node):
                 elapsed = (self.get_clock().now() - start).nanoseconds / 1e9
 
             try:
-                with time_limit(0.1):
+                with time_limit(self.allowed_time):
                     torques = self.task.compute_control(
                         elapsed, position, velocity, sensors)
                     if self.time_publisher:
@@ -463,6 +467,7 @@ class ConnectorNode(Node):
                             self.tf_broadcaster.sendTransform(transform)
             except TimeoutException as e:
                 print("Timed out!")
+                exit()
 
             self.connector.set_torques(torques)
             self.connector.step()
