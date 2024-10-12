@@ -4,44 +4,27 @@ from scipy.interpolate import CubicSpline
 from .task_base import TaskBase
 from ftn_solo.controllers import PDWithFrictionCompensation
 from robot_properties_solo import Solo12Robot
-from geometry_msgs.msg import Point, Vector3
 import pinocchio as pin
 from rclpy.node import Node
 from visualization_msgs.msg import MarkerArray, Marker
 from geometry_msgs.msg import PoseArray, Pose
 from std_msgs.msg import ColorRGBA
-from ftn_solo.utils.conversions import ToPoint, ToQuaternion, ToVector
-from copy import deepcopy
+from ftn_solo.utils.conversions import ToPoint, ToQuaternion
 from scipy.special import erf
 from ftn_solo.utils.trajectories import get_trajectory_marker, SplineData
 from sensor_msgs.msg import JointState
-from geometry_msgs.msg import TransformStamped
 from tf2_ros import TransformBroadcaster
-import time as tm
-import math
-import proxsuite
 from threading import Thread
 from ftn_solo_control import (
-    FrictionCone,
     FixedPointsEstimator,
     FrictionConeMap,
-    PieceWiseLinearPosition,
-    PieceWiseLinearRotation,
     SplineTrajectory,
-    publish_cone_marker,
     get_touching_pose,
     get_touching_placement,
-    get_end_of_motion,
-    get_end_of_motion_prioritized,
     EEFPositionMotion,
-    EEFRotationMotion,
-    COMMotion,
     JointMotion,
     WholeBodyController,
     MotionsVector,
-    get_projected_wcm,
-    get_projected_wcm_with_torque,
-    intersect,
     TrajectoryPlanner
 )
 
@@ -135,8 +118,6 @@ class TaskMoveBase(TaskBase):
         self.publisher = self.node.create_publisher(MarkerArray, "markers", 10)
         self.pose_publisher = self.node.create_publisher(
             PoseArray, "origin_pose", 10)
-        self.join_state_pub = self.node.create_publisher(
-            JointState, "/ik/joint_states", 10)
         self.tf_broadcaster = TransformBroadcaster(self.node)
         self.base_index = self.robot.pin_robot.model.getFrameId("base_link")
         self.initialized = False
@@ -207,95 +188,6 @@ class TaskMoveBase(TaskBase):
 
     def always_false(self, *args, **kwargs):
         return False
-
-    def publish_wcm_markers(self, wcm_list, next_com, prefix="wcm_"):
-        for cone in self.friction_cones:
-            publish_cone_marker(cone.data())
-        markers = MarkerArray()
-        marker = Marker()
-        marker.header.frame_id = "world"
-        marker.action = Marker.ADD
-        marker.type = Marker.LINE_STRIP
-        marker.color = ColorRGBA(r=0.0, g=1.0, b=1.0, a=0.5)
-        marker.scale.x = 0.005
-        marker.scale.y = 0.005
-        marker.scale.z = 0.005
-        marker.id = 205
-        marker.ns = "wcm"
-        marker.pose.position = Point(x=0.0, y=0.0, z=0.0)
-        marker.pose.orientation.x = marker.pose.orientation.y = (
-            marker.pose.orientation.z
-        ) = 0.0
-        marker.pose.orientation.w = 1.0
-        for i, wcm_2d in enumerate(wcm_list):
-            marker2 = deepcopy(marker)
-            marker2.id = 205+i
-            marker2.points.clear()
-            marker2.color.g = marker2.color.g/(2**i)
-            marker2.ns = prefix+str(i)
-            for wcm_point in wcm_2d.points:
-                point = Point()
-                point.z = 0.0
-                point.x = wcm_point[0]
-                point.y = wcm_point[1]
-                marker2.points.append(point)
-            marker2.points.append(marker2.points[0])
-            markers.markers.append(marker2)
-
-        marker3 = deepcopy(marker)
-        marker3.ns = prefix+"com"
-        marker3.color = ColorRGBA(r=1.0, g=0.0, b=1.0, a=1.0)
-        marker3.scale = Vector3(x=0.02, y=0.02, z=0.02)
-        marker3.id = 207
-        marker3.type = Marker.SPHERE
-        marker3.pose.position.x = next_com[0]
-        marker3.pose.position.y = next_com[1]
-        markers.markers.append(marker3)
-        self.publisher.publish(markers)
-
-    def compute_com_xy(self, publish_markers=True):
-        next_wcm_2d = get_projected_wcm(self.next_friction_cones)
-        return self.compute_com_pos(next_wcm_2d, publish_markers=publish_markers, prefix="wcm_")
-
-    def compute_com_xy_with_torque(self, publish_markers=True):
-        next_wcm_2d = get_projected_wcm_with_torque(
-            self.robot.pin_robot.model, self.ik_data, self.next_friction_cones, self.max_torque)
-        ik_pos = self.ik_data.com[0]
-        ik_pos[2] = 1
-        if (np.all(np.matmul(next_wcm_2d.equations(), ik_pos) > 0)):
-            self.publish_wcm_markers(
-                [next_wcm_2d], self.ik_data.com[0], prefix="wct_")
-            return ik_pos, False
-        return self.compute_com_pos(next_wcm_2d, publish_markers=publish_markers,  prefix="wct_"), True
-
-    def compute_com_pos(self,  next_wcm_2d, publish_markers, prefix):
-        C = np.copy(next_wcm_2d.equations())
-        d = 0.04*self.origin_pose.rotation[2, 2] - C[:, 2]
-        C = C[:, :2]
-        H = np.eye(2)
-        qp = proxsuite.proxqp.dense.QP(
-            2, 0, C.shape[0], False, proxsuite.proxqp.dense.HessianType.Dense)
-
-        desp = self.robot.pin_robot.data.com[0]
-        g = - np.copy(desp[:2])
-
-        qp.init(
-            H,
-            g,
-            None,
-            None,
-            C,
-            d,
-            1e20 * np.ones(C.shape[0])
-        )
-        qp.settings.initial_guess = proxsuite.proxqp.InitialGuess.WARM_START
-        x0 = np.mean(np.column_stack(next_wcm_2d.points), axis=1)
-        qp.solve(x0, None, None)
-        pos = qp.results.x[:2]
-        if publish_markers:
-            self.publish_wcm_markers(
-                [next_wcm_2d], pos, prefix=prefix)
-        return pos
 
     def get_new_origin(self, friction_cones):
         if len(friction_cones) == 4:
@@ -444,24 +336,6 @@ class TaskMoveBase(TaskBase):
             m.set_start(t)
         self.init_qp()
         self.trajectory_planner = None
-
-    def publish_ik(self, t,  q_final):
-        joint_state = JointState()
-        joint_state.header.stamp.sec = math.floor(t)
-        joint_state.header.stamp.nanosec = math.floor((t-math.floor(t))*1e9)
-        joint_state.name = self.robot.joint_names
-        joint_state.position = q_final[7:].tolist()
-        self.join_state_pub.publish(joint_state)
-        world_T_base = TransformStamped()
-        world_T_base.header.stamp = joint_state.header.stamp
-        world_T_base.header.frame_id = "world"
-        world_T_base.child_frame_id = "ik/base_link"
-        world_T_base.transform.translation = ToVector(q_final[0:3])
-        world_T_base.transform.rotation.w = q_final[6]
-        world_T_base.transform.rotation.x = q_final[3]
-        world_T_base.transform.rotation.y = q_final[4]
-        world_T_base.transform.rotation.z = q_final[5]
-        self.tf_broadcaster.sendTransform(world_T_base)
 
     def init_qp(self):
         self.controller = WholeBodyController(
