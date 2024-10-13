@@ -80,10 +80,13 @@ def launch_setup(context, *args, **kwargs):
             package='joy',
             executable='joy_node',
             name='joy_node',
-            parameters=[{'dev': '/dev/input/js0',  # Specify your joystick device
-                         'deadzone': 0.05,        # Optional: set a deadzone
-                         'autorepeat_rate': 20.0  # Optional: set autorepeat rate
-                        }],
+            parameters=[
+                {
+                    'dev': '/dev/input/js0',  
+                    'deadzone': 0.05,        
+                    'autorepeat_rate': 20.0  
+                }
+            ],
             output='screen'
         ),
     ]

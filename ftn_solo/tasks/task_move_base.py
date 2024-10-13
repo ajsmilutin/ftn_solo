@@ -7,7 +7,7 @@ from robot_properties_solo import Solo12Robot
 import pinocchio as pin
 from rclpy.node import Node
 from visualization_msgs.msg import MarkerArray, Marker
-from std_msgs.msg import ColorRGBA, Float32
+from std_msgs.msg import ColorRGBA, Float32MultiArray
 from ftn_solo.utils.conversions import ToPoint, ToQuaternion
 from copy import deepcopy
 from ftn_solo.utils.trajectories import SplineData, PiecewiseLinear
@@ -85,7 +85,7 @@ class Estimator:
 
 
 class TaskMoveBase(TaskBase):
-    states = ["start", "move_base"]
+    states = ["start", "move_base", "move_up", "idle"]
 
     def __init__(self,  num_joints, robot_type,  config_yaml) -> None:
         self.step = 0
@@ -105,11 +105,9 @@ class TaskMoveBase(TaskBase):
         self.loop_phase = 0
         self.machine = Machine(
             model=self, states=TaskMoveBase.states, initial="start")
-        self.machine.add_transition(
-            "tick", "start", "move_base", conditions="following_spline")
-        self.machine.add_transition(
-            "tick", "move_base", "move_base", conditions="moving_base")
-        self.machine.on_enter_move_base(self.compute_base_trajectory)
+        
+        self.transition_maker()
+        
         self.node = Node("node")
         self.estimator = Estimator(self.robot)
         self.publisher = self.node.create_publisher(MarkerArray, "markers", 1)
@@ -117,16 +115,45 @@ class TaskMoveBase(TaskBase):
         self.initialized = False
         self.num_faces = 4
         self.friction_cones = dict()
-        self.subscriber = self.node.create_subscription(Float32,'acceleration_change', self.joy_callback, 10)
-        self.msg = 0.0
-        # rclpy.spin(self.node)
+        self.subscriber = self.node.create_subscription(Float32MultiArray,'acceleration_change', self.joy_callback, 10)
+        self.msg = Float32MultiArray
+        self.repeat = False
+        self.position = None
+        self.finish = True
+        self.my_state = None
+        self.my_time = 0
+        self.des_velocity = np.array([0.0, 0.0, 0.0])
 
     def joy_callback(self, msg):
-        if msg.data:
-            self.node.get_logger().info(str(msg.data))
-            self.msg = msg.data
-        else:
-            self.msg = 0.0
+        self.msg = msg.data
+        if msg.data[0] > 0.05 or msg.data[0] < -0.05:
+            self.des_velocity[1] = self.msg[0] * 0.1
+        else: self.des_velocity[1] = 0
+        if msg.data[1] > 0.05 or msg.data[1] < -0.05:
+            self.des_velocity[0] = self.msg[1] * 0.1
+        else: self.des_velocity[0] = 0
+        if msg.data[2] > 0.05 or msg.data[2] < -0.05:
+            pass
+        if msg.data[3] > 0.05 or msg.data[3] < -0.05:
+            pass
+        if msg.data[4]:
+            self.des_velocity[2] = -0.2
+        elif msg.data[5]:
+            self.des_velocity[2] = 0.2
+        else: self.des_velocity[2] = 0
+    
+    def transition_maker(self):
+        self.machine.add_transition(
+            "tick", "start", "move_base", after="compute_base_trajectory", conditions="following_spline")
+        self.machine.add_transition(
+            "tick", "move_base", "move_base", conditions="moving_base")
+        # self.machine.on_enter_move_base(self.compute_base_trajectory)
+        # self.machine.add_transition(
+        #     trigger="up", source="move_base", dest="move_up")
+        # self.machine.add_transition(
+        #     trigger="up", source="move_up", dest="move_up")
+        # self.machine.add_transition(
+        #     trigger="tick", source="move_up", dest="move_up", before="compute_base_up", conditions="moving_base")
 
     def parse_poses(self, poses):
         self.poses = {}
@@ -143,28 +170,15 @@ class TaskMoveBase(TaskBase):
             ([tstart], tstart + sequence.durations)), np.vstack((q, sequence.poses)), bc_type="clamped")
         self.last_pose = sequence.poses[-1, :]
 
+
     def compute_base_trajectory(self, t, q, qv):
-        self.base_trajectory = PiecewiseLinear()
-        position = self.robot.pin_robot.data.oMf[self.base_index].translation
-        dist = 0.1
-        time = 3
-        self.base_trajectory.add(deepcopy(position), 0)
-        self.base_trajectory.add(
-            position + np.array([1.0, 0.0, 0.0])*dist, time)
-        self.base_trajectory.add(
-            position + np.array([0.0, 0.5, 0.0])*dist, time*2)
-        self.base_trajectory.add(
-            position + np.array([-1.0, 0.0, 0.0])*dist, time*3)
-        self.base_trajectory.add(
-            position + np.array([0.0, -0.5, 0.0])*dist, time*4)
-        self.base_trajectory.add(
-            position + np.array([0.0, 0.0, 1.0])*dist, time*5)
-        self.base_trajectory.add(
-            position + np.array([0.0, 0.0, -1.0])*dist, time*6)
-        self.base_trajectory.close_loop(7*time)
-        self.publisher.publish(
-            self.base_trajectory.get_trajectory_marker("base_link"))
-        self.base_trajectory.set_start(t)
+        # self.base_trajectory = PiecewiseLinear()
+        # position = self.robot.pin_robot.data.oMf[self.base_index].translation
+        # self.base_trajectory.add(deepcopy(position), t)
+        
+        # self.publisher.publish(
+        #     self.base_trajectory.get_trajectory_marker("base_link"))
+        # self.base_trajectory.set_start(t)
         self.qp = proxsuite.proxqp.dense.QP(
             self.robot.pin_robot.nv*2-6+4*3, self.robot.pin_robot.nv+4*3, 4*self.num_faces, False, proxsuite.proxqp.dense.HessianType.Diagonal)
 
@@ -184,19 +198,15 @@ class TaskMoveBase(TaskBase):
         return t >= self.transition_end
 
     def moving_base(self, t, q, qv):
-        p, v, a = self.base_trajectory.get(t)
+        # p, v, a = self.base_trajectory.get(t)
+        position = self.robot.pin_robot.data.oMf[self.base_index].translation
         Kp = 100
-        Kd = 50
-
-        rclpy.spin_once(self.node, timeout_sec=0.005)
-
-        ades = self.msg * a + Kp * (p - self.estimator.estimated_q[:3])  \
-            + Kd * (v - self.estimator.estimated_qv[:3])
-        alphades = -self.msg * a + (-Kp * \
-            pin.log(pin.Quaternion(self.estimator.estimated_q[3:7]).matrix()) - \
-            Kd * self.estimator.estimated_qv[3:6])
-
-
+        Kd = 20
+        ades = Kp * \
+            (position - self.estimator.estimated_q[:3]) + \
+            Kd * (self.des_velocity - self.estimator.estimated_qv[:3])
+        alphades = -Kp*pin.log(pin.Quaternion(
+            self.estimator.estimated_q[3:7]).matrix()) - Kd*self.estimator.estimated_qv[3:6]
         dim = self.qp.model.dim
         n_eq = self.qp.model.n_eq
         nv = self.robot.pin_robot.nv
@@ -237,14 +247,15 @@ class TaskMoveBase(TaskBase):
 
         self.qp.solve()
         self.control = self.qp.results.x[nv:2*nv-6]
-        return False
+        # self.node.get_logger().info(str(p))
+        self.node.get_logger().info(str(self.robot.pin_robot.data.oMf[self.base_index].translation))
+        return True
 
     def compute_control(self, t, q, qv, sensors):
         if (self.step == 0):
             self.estimator.init(q, qv, sensors)
         self.estimator.estimate(t, q, qv, sensors)
 
-        # rclpy.spin_once(self.node)
         full_q = self.estimator.estimated_q
         full_qv = self.estimator.estimated_qv
         self.step = self.step+1
@@ -271,6 +282,8 @@ class TaskMoveBase(TaskBase):
                 marker_array.markers.append(marker)
 
             self.publisher.publish(marker_array)
+
+        rclpy.spin_once(self.node, timeout_sec=0.001)
 
         self.tick(t, q, qv)
         return self.control
