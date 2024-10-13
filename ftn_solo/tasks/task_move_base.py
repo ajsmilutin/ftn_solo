@@ -14,6 +14,7 @@ from ftn_solo.utils.trajectories import SplineData, PiecewiseLinear
 import proxsuite
 from ftn_solo.utils.types import FrictionCone
 import rclpy
+from sensor_msgs.msg import Joy
 
 
 class Estimator:
@@ -115,30 +116,48 @@ class TaskMoveBase(TaskBase):
         self.initialized = False
         self.num_faces = 4
         self.friction_cones = dict()
-        self.subscriber = self.node.create_subscription(Float32MultiArray,'acceleration_change', self.joy_callback, 10)
-        self.msg = Float32MultiArray
-        self.repeat = False
-        self.position = None
-        self.finish = True
-        self.my_state = None
-        self.my_time = 0
+        # self.subscriber = self.node.create_subscription(Float32MultiArray,'acceleration_change', self.joy_callback, 10)
+        self.subscriber = self.node.create_subscription(Joy,'joy', self.joy_callback, 10)
+        # self.msg = Float32MultiArray
+        # self.repeat = False
+        # self.position = None
+        # self.finish = True
+        # self.my_state = None
+        # self.my_time = 0
         self.des_velocity = np.array([0.0, 0.0, 0.0])
 
+    # def joy_callback(self, msg):
+    #     self.msg = msg.data
+    #     if msg.data[0] > 0.05 or msg.data[0] < -0.05:
+    #         self.des_velocity[1] = self.msg[0] * 0.1
+    #     else: self.des_velocity[1] = 0
+    #     if msg.data[1] > 0.05 or msg.data[1] < -0.05:
+    #         self.des_velocity[0] = self.msg[1] * 0.1
+    #     else: self.des_velocity[0] = 0
+    #     if msg.data[2] > 0.05 or msg.data[2] < -0.05:
+    #         pass
+    #     if msg.data[3] > 0.05 or msg.data[3] < -0.05:
+    #         pass
+    #     if msg.data[4]:
+    #         self.des_velocity[2] = -0.2
+    #     elif msg.data[5]:
+    #         self.des_velocity[2] = 0.2
+    #     else: self.des_velocity[2] = 0
+
     def joy_callback(self, msg):
-        self.msg = msg.data
-        if msg.data[0] > 0.05 or msg.data[0] < -0.05:
-            self.des_velocity[1] = self.msg[0] * 0.1
+        if msg.axes[0] > 0.05 or msg.axes[0] < -0.05:
+            self.des_velocity[1] = msg.axes[0] * 0.1
         else: self.des_velocity[1] = 0
-        if msg.data[1] > 0.05 or msg.data[1] < -0.05:
-            self.des_velocity[0] = self.msg[1] * 0.1
+        if msg.axes[1] > 0.05 or msg.axes[1] < -0.05:
+            self.des_velocity[0] = msg.axes[1] * 0.1
         else: self.des_velocity[0] = 0
-        if msg.data[2] > 0.05 or msg.data[2] < -0.05:
+        if msg.axes[4] > 0.05 or msg.axes[4] < -0.05:
             pass
-        if msg.data[3] > 0.05 or msg.data[3] < -0.05:
+        if msg.axes[5] > 0.05 or msg.axes[5] < -0.05:
             pass
-        if msg.data[4]:
+        if msg.buttons[4]:
             self.des_velocity[2] = -0.2
-        elif msg.data[5]:
+        elif msg.buttons[5]:
             self.des_velocity[2] = 0.2
         else: self.des_velocity[2] = 0
     
@@ -247,8 +266,6 @@ class TaskMoveBase(TaskBase):
 
         self.qp.solve()
         self.control = self.qp.results.x[nv:2*nv-6]
-        # self.node.get_logger().info(str(p))
-        self.node.get_logger().info(str(self.robot.pin_robot.data.oMf[self.base_index].translation))
         return True
 
     def compute_control(self, t, q, qv, sensors):
