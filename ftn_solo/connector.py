@@ -356,7 +356,6 @@ class ConnectorNode(Node):
                 elapsed = self.clock.clock.sec + self.clock.clock.nanosec / 1e9
             else:
                 elapsed = (self.get_clock().now() - start).nanoseconds / 1e9
-
             torques = self.task.compute_control(
                 elapsed, position, velocity, sensors)
             self.connector.set_torques(torques)
