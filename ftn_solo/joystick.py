@@ -19,6 +19,7 @@ class JoyMessage(Node):
 
 
 def main(args=None):
+    pass
     # rclpy.init()
     # node = JoyMessage()
     # rclpy.spin(node)
