@@ -33,6 +33,7 @@ on_start:
   poses: ["zero_pose"]
   durations: [10.0]
 
+
 loop:
   - poses: ["zero_pose", "initial_pose" ,"zero_pose", "initial_pose","zero_pose", "initial_pose"]
     durations: [0.5, 1.0, 1.5, 2.0, 2.5, 3.0]
