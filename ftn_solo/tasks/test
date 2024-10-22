@@ -1,0 +1,133 @@
+function [Ve_intensity, omega_intensity, Ve, omega, qd, qvd, qad, sigma_min_vect, k_vect]=IK(ref_s, alfa, ref_alfa, sdot, alfadot, pravac_ort, osa, lbr, qd, t, deltaT, Rs)
+Ve_intensity=0;
+omega_intensity=0;
+Ve= zeros(3,length(t));
+omega= zeros(3,length(t));
+sigma_min_vect = zeros(1,1001);
+k_vect = zeros(1,1001); 
+
+% Limiti zglobova u radijanima
+qmin(1)=-2.96705972839;
+qmin(2)=-2.09439510239;
+qmin(3)=-2.96705972839;
+qmin(4)=-2.09439510239;
+qmin(5)=-2.96705972839;
+qmin(6)=-2.09439510239;
+qmin(7)=-3.05432619099;
+
+qmax(1)=2.96705972839;
+qmax(2)=2.09439510239;
+qmax(3)=2.96705972839;
+qmax(4)=2.09439510239;
+qmax(5)=2.96705972839;
+qmax(6)=2.09439510239;
+qmax(7)=3.05432619099;
+
+q_sredina(1) = qmax(1)-abs(qmin(1));
+q_sredina(2) = qmax(2)-abs(qmin(2));
+q_sredina(3) = qmax(3)-abs(qmin(3));
+q_sredina(4) = qmax(4)-abs(qmin(4));
+q_sredina(5) = qmax(5)-abs(qmin(5));
+q_sredina(6) = qmax(6)-abs(qmin(6));
+q_sredina(7) = qmax(7)-abs(qmin(7));
+
+poc_poza = getTransform(lbr, qd(:,1), 'iiwa_link_ee_kuka','world');
+ref_s_novo = poc_poza(1:3,4) + ref_s;
+%ref_alfa_novo = transpose(rotm2eul(poc_poza(1:3,1:3))) + ref_alfa;
+
+
+for j=2:length(t)  
+        Ve_intensity=sdot(j);    % Iintenzitet linearne brzine vrha
+        omega_intensity=alfadot(j);    % Intenzitet ugaone brzine vrha
+
+        Ve(:,j)=Ve_intensity*pravac_ort;    % Vektor linearne brzine vrha
+        omega(:,j)=omega_intensity*osa;     % Vektor ugaone brzine vrha
+
+        J=geometricJacobian(lbr,qd(:,j-1),'iiwa_link_ee_kuka');  % Trenutni Jakobijan
+        
+        %%% Mesto da se uradi regularizacija pseudo-inverznog Jakobijana - DLS inverse
+        % SVD dekomponovani Jakobijan
+        Jt = transpose(J);
+        kvadratni_J = J*Jt;
+        lambdas = svd(kvadratni_J);
+        sing_val = sqrt(lambdas);
+        S = diag(sing_val);
+
+        [U1,S1,V1] = svd(J);
+
+        epsilon = 0.18; %0.02
+        k_max = 0.04; %1
+        %k = 0;
+
+        % Nalazenje minimalne singularne vrednosti u matrici S
+        sigma_min = min(diag(S));
+        sigma_min_vect(j) = sigma_min;
+        if sigma_min < epsilon
+            k = sqrt((1-power((sigma_min/epsilon),2))*power(k_max,2));
+            k0 = 0;
+        else
+            k0 = 10;
+            k = 0;
+        end
+        k_vect(j) = k;
+        % Odre?ivanje prigušenog DLS Jakobijana
+        J_DSL = Jt*inv(kvadratni_J + power(k,2)*diag([1 1 1 1 1 1]));
+        [U2,S2,V2] = svd(J_DSL);
+        
+        %%%%%% Mesto da se uradi definisanje brzine koja se projektuje u nul-prostor Jakobijana i opisuje dopunski zadatak drzanja sredine opsega zglobova
+        %k0 = 0.1;
+        n = 7;
+        for p = 1:n
+            qv0(p) = k0/n * ((q_sredina(p) - qd(p,j-1))/(power((qmax(p)-qmin(p)),2))); % pitanje : da li umjesto qd_ideal ide qd
+        end
+                      
+        vector_ones = [1 1 1 1 1 1 1];
+        
+        %%%%%%CLICK algoritam
+        
+        %Greška pozicije
+        pos_ideal = ref_s_novo(:,j-1);
+        
+        pos_curr = getTransform(lbr, qd(:,j-1), 'iiwa_link_ee_kuka','world');
+        pos_curr(1:3,4);
+        pos_error = pos_ideal - pos_curr(1:3,4);
+        
+        %Greška orijentacije
+%         ref_alfa_matrix = eul2rotm(transpose(ref_alfa_novo(:,j)));
+%         ne_d = ref_alfa_matrix(:,1);
+%         se_d = ref_alfa_matrix(:,2);
+%         ae_d = ref_alfa_matrix(:,3);
+        
+        alfa_rot_matrix = Rs * axang2rotm([transpose(osa) alfa(j)]);
+        ne_d = alfa_rot_matrix(:,1);
+        se_d = alfa_rot_matrix(:,2);
+        ae_d = alfa_rot_matrix(:,3);
+        
+        ne_e = pos_curr(:,1);
+        se_e = pos_curr(:,2);
+        ae_e = pos_curr(:,3);
+        
+        S_ne_e = [0 -ne_e(3) ne_e(2); ne_e(3) 0 -ne_e(1); -ne_e(2) ne_e(1) 0];
+        S_se_e = [0 -se_e(3) se_e(2); se_e(3) 0 -se_e(1); -se_e(2) se_e(1) 0];
+        S_ae_e = [0 -ae_e(3) ae_e(2); ae_e(3) 0 -ae_e(1); -ae_e(2) ae_e(1) 0];
+        
+        o_error = 1/2 * (S_ne_e * ne_d + S_se_e * se_d +  S_ae_e * ae_d)
+        
+        error = [o_error; pos_error];
+                
+        K_matrix = diag([0 0 0 0 0 0]);
+
+        qvd(:,j)=J_DSL*([omega(:,j); Ve(:,j)]+K_matrix*error) + (diag(vector_ones) - (J_DSL*J))*transpose(qv0);
+        qd(:,j)=qd(:,j-1)+deltaT*qvd(:,j-1);
+        
+        % Diferenciranje
+        qad(:,j)=(qvd(:,j)-qvd(:,j-1))/deltaT;
+        if j>2 
+               qad(:,j)=(11/6*qvd(:,j)-3*qvd(:,j)+3/2*qvd(:,j-1)-1/3*qvd(:,j-2))/3/deltaT; % Preciznije numeri?ko diferenciranje
+        end
+        
+        iteracija=j % Trenutna iteracija izvršavanja petlje
+
+        
+end
+end

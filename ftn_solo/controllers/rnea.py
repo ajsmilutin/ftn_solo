@@ -11,23 +11,37 @@ class RneAlgorithm(PinocchioWrapper):
         super().__init__(robot_version, logger, dt)
         # self.Kp = float_or_list(yaml_config["Kp"], num_joints)
         # self.Kd = float_or_list(yaml_config["Kd"], num_joints)
-        # self.B = float_or_list(yaml_config["B"], num_joints)
+        self.B = float_or_list(yaml_config["B"], num_joints)
+        self.Fv = float_or_list(yaml_config["Fv"], num_joints)
         # self.max_control = float_or_list(
         #     yaml_config["max_control"], num_joints)
+        self.logger = logger
         self.q = np.zeros(19)
+        self.dq = np.array([])
+        self.ndq = np.zeros(18)
+        self.q_base = np.array([0,0,0,0,0,0,1])
 
-    def rnea(self, steps, qcurr, dqcurr):
+    def rnea(self, steps, qcurr, dqcurr,qbase):
 
-        for x, joints in enumerate(self.end_eff_ids):
-            n = self.framesForwardKinematics(
-                self.q, joints, steps[x], self.base_link, x)
-            J = self.computeFrameJacobian(self.q, joints)
-            dq = np.dot(J, n)
-            q = self.pinIntegrate(self.q, dq)
-            q_joints = q[7:19]
-            ref_tau = self.pd_controller(q_joints, dq[6:18], qcurr, dqcurr)
-            ddq = self.get_acceleration(q, dq, ref_tau)
-            self.tau = self.compute_recrusive_newtone_euler(q, dq, ddq)
-            self.q = q
+        # qbase = np.array([qbase[1],qbase[2],qbase[3],qbase[0]])
+        # self.q = np.concatenate((np.concatenate((self.q_base,qbase)), qcurr))
+        self.q = np.concatenate((self.q_base,qcurr))
+        self.ndq.fill(0)
+        new = self.framesForwardKinematics(
+            self.q, self.end_eff_ids, steps, self.base_link)
+        self.computeFrameJacobian(self.q)
 
-        return self.tau[6:18]
+        for x,end_eff_id in enumerate(self.end_eff_ids):
+            J = self.get_frame_jacobian(end_eff_id)
+            self.dq = np.dot(J, new[x])
+            self.ndq += self.dq
+        
+        q = self.pinIntegrate(self.q, self.ndq)
+      
+        q_joints = q[7:19]
+       
+        ddq = self.pd_controller(q_joints, self.dq[6:18], qcurr, dqcurr)
+        
+        self.tau = self.compute_recrusive_newtone_euler(q, self.ndq, ddq,self.Fv,self.B)
+        return self.tau
+ 

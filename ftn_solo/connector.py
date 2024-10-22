@@ -151,9 +151,23 @@ class PybulletConnector(SimulationConnector):
     def contact_sensors(self):
         contact_points = pybullet.getContactPoints(self.robot_id)
         bodies_in_contact = set()
+        contact_forces = []
 
         for contact_info in contact_points:
             bodies_in_contact.add(contact_info[3])
+            contact_normal = contact_info[7]
+            normal_force = contact_info[9]
+            lateral_friction_direction_1 = contact_info[11]
+            lateral_friction_force_1 = contact_info[10]
+            lateral_friction_direction_2 = contact_info[13]
+            lateral_friction_force_2 = contact_info[12]
+            force = np.zeros(6)
+            force[:3] = (
+                normal_force * np.array(contact_normal)
+                + lateral_friction_force_1 * np.array(lateral_friction_direction_1)
+                + lateral_friction_force_2 * np.array(lateral_friction_direction_2)
+            )
+            contact_forces.append(force)
 
         self.reading = {name: self.end_effector_ids[j] in bodies_in_contact for j, name in enumerate(
             self.touch_sensors)}
