@@ -549,7 +549,6 @@ class TaskMoveBase(TaskBase):
         if self.estimator and self.estimator.initialized():
             self.estimator.estimate(t, q, qv, sensors)
             self.step = self.step + 1
-
             if self.step % 50 == 0:
                 marker_array = MarkerArray()
                 marker = Marker()
