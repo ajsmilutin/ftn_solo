@@ -45,7 +45,7 @@ def launch_setup(context, *args, **kwargs):
             output="screen",
             parameters=[
                 {"robot_description": robot_desc, "use_sim_time": use_sim_time,
-                 "frame_prefix":"ik/"},
+                 "frame_prefix": "ik/"},
             ],
         ),
         Node(
@@ -80,6 +80,18 @@ def launch_setup(context, *args, **kwargs):
                 }
             ],
             output="log"
+        ),
+        Node(
+            package='joy',
+            executable='joy_node',
+            name='joy_node',
+            parameters=[
+                {
+                    'dev': '/dev/input/js0',
+                    'deadzone': 0.05
+                }
+            ],
+            output='screen'
         ),
     ]
 

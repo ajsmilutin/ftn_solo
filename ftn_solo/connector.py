@@ -63,8 +63,8 @@ class RobotConnector(Connector):
         self.robot.initialize(
             np.array([0]*self.robot.joints.number_motors, dtype=np.float64))
         self.running = True
-        self.dT = 0.001
-        self.nanoseconds = self.dT*1e9
+        self.dt = 0.001
+        self.nanoseconds = self.dt*1e9
 
     def get_data(self):
         self.robot.parse_sensor_data()
@@ -81,14 +81,16 @@ class RobotConnector(Connector):
         return not (self.robot.has_error)
 
     def step(self):
-        self.robot.send_command_and_wait_end_of_cycle(self.dT)
+        self.robot.send_command_and_wait_end_of_cycle(self.dt)
         return True
 
     def num_joints(self):
         return self.robot.joints.number_motors
 
     def get_sensor_readings(self):
-        q = self.robot.imu_data.attitude_quaternion
+        q = self.robot.imu.attitude_quaternion
+        self.logger.error("BBBBB {}".format(self.robot.imu.attitude_euler))
+        self.logger.error("CCCCC {}".format(self.robot.imu.attitude_quaternion))
         data = SensorData()
         data.imu_data.attitude = np.array([q[3], q[0], q[1], q[2]])
         return data
@@ -386,7 +388,7 @@ class ConnectorNode(Node):
             niceness = os.nice(0)
             niceness = os.nice(-15-niceness)
             self.get_logger().info("Setting niceness to {}".format(niceness))
-            self.allowed_time = 0.001
+            self.allowed_time = 0.025
             self.connector = RobotConnector(robot_version,  self.get_logger())
 
         if task == 'joint_spline':
@@ -454,7 +456,7 @@ class ConnectorNode(Node):
                                 transform.transform.rotation.y = self.task.estimator.estimated_q[4]
                                 transform.transform.rotation.z = self.task.estimator.estimated_q[5]
                                 self.tf_broadcaster.sendTransform(transform)
-                        elif "attitude" in sensors.keys():
+                        else:
                             transform.header.stamp = joint_state.header.stamp
                             transform.header.frame_id = "world"
                             transform.child_frame_id = "base_link"

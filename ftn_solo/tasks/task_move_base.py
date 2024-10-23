@@ -6,13 +6,14 @@ from ftn_solo.controllers import PDWithFrictionCompensation
 from robot_properties_solo import Solo12Robot
 import pinocchio as pin
 from rclpy.node import Node
+from rclpy import spin_once
 from visualization_msgs.msg import MarkerArray, Marker
 from geometry_msgs.msg import PoseArray, Pose
 from std_msgs.msg import ColorRGBA
 from ftn_solo.utils.conversions import ToPoint, ToQuaternion
 from scipy.special import erf
 from ftn_solo.utils.trajectories import get_trajectory_marker, SplineData
-from sensor_msgs.msg import JointState
+from sensor_msgs.msg import Joy
 from tf2_ros import TransformBroadcaster
 from threading import Thread
 from ftn_solo_control import (
@@ -27,6 +28,12 @@ from ftn_solo_control import (
     MotionsVector,
     TrajectoryPlanner
 )
+
+
+SQUARE = 3
+EX = 0
+TRIANGLE = 2
+CIRCLE = 1
 
 
 class MotionData:
@@ -80,6 +87,47 @@ def parse_sequence(config):
     return sequence
 
 
+class PlaybackControl:
+    states = ["stopped", "running", "one_step"]
+
+    def __init__(self):
+        self.machine = Machine(
+            model=self, states=PlaybackControl.states, initial="running")
+        self.machine.add_transition("start", "stopped", "running")
+        self.machine.add_transition("start", "one_step", "running")
+        self.machine.add_transition("stop", "running", "stopped")
+        self.machine.add_transition("stop", "one_step", "stopped")
+        self.machine.add_transition("finish_step", "one_step", "stopped")
+        self.machine.add_transition("start_step", "stopped", "one_step")
+        self.old_msg = Joy()
+        self.old_msg.buttons = [False, False, False, False]
+
+    def can_step(self):
+        if self.state in ["running", "one_step"]:
+            return True
+        else:
+            return False
+
+    def step(self):
+        if self.state == "one_step":
+            self.finish_step()
+
+    def released(self, msg,  button):
+        if not msg.buttons[button] and self.old_msg.buttons[button]:
+            return True
+        return False
+
+    def joy_callback(self, msg):
+        print("BEFORE {}".format(self.state))
+        if self.released(msg, SQUARE) and self.state in ["running", "one_step"]:
+            self.stop()
+        if self.released(msg, CIRCLE) and self.state in ["stopped", "one_step"]:
+            self.start()
+        if self.released(msg, EX) and self.state == "stopped":
+            self.start_step()
+        self.old_msg = msg            
+        print("AFTER {}".format(self.state))
+
 class TaskMoveBase(TaskBase):
     states = ["start", "move_base", "move_eef"]
 
@@ -121,7 +169,7 @@ class TaskMoveBase(TaskBase):
         self.tf_broadcaster = TransformBroadcaster(self.node)
         self.base_index = self.robot.pin_robot.model.getFrameId("base_link")
         self.initialized = False
-        self.num_faces = 8
+        self.num_faces = 4
         self.friction_coefficient = 0.9
         self.torso_height = 0.2
         self.friction_cones = dict()
@@ -133,6 +181,10 @@ class TaskMoveBase(TaskBase):
         self.end_times = {}
         self.ik_data = pin.Data(self.robot.pin_robot.model)
         self.max_torque = 2.2
+        self.playback_controller = PlaybackControl()
+        self.node.create_subscription(
+            Joy, 'joy', self.playback_controller.joy_callback, 10)
+        self.can_step = False
 
     def parse_poses(self, poses):
         self.poses = {}
@@ -342,14 +394,24 @@ class TaskMoveBase(TaskBase):
             self.estimator, self.friction_cones, self.max_torque)
 
     def following_spline(self, t, q, qv, sensors):
-        self.ref_position = self.trajectory(t)
-        self.ref_velocity = self.trajectory(t, 1)
-        self.ref_acceleration = self.trajectory(t, 2)
+        if (t <= self.transition_end):
+            self.ref_position = self.trajectory(t)
+            self.ref_velocity = self.trajectory(t, 1)
+            self.ref_acceleration = self.trajectory(t, 2)
+        else:
+            self.ref_position = self.trajectory(self.transition_end)
+            self.ref_velocity = 0*self.trajectory(t, 1)
+            self.ref_acceleration = 0*self.trajectory(t, 2)
+
         self.control = self.joint_controller.compute_control(
             self.ref_position, self.ref_velocity, None, q, qv
         )
         if (t >= self.transition_end):
-            if not self.estimator:
+            if not self.can_step:
+                if self.playback_controller.can_step():
+                    self.can_step = True
+                    self.playback_controller.step()
+            elif not self.estimator:
                 self.estimator = FixedPointsEstimator(
                     0.001,
                     self.robot.pin_robot.model,
@@ -365,6 +427,7 @@ class TaskMoveBase(TaskBase):
                 elif self.trajectory_planner.computation_done():
                     self.compute_base_trajectory_finish(t)
                     self.finished = False
+                    self.can_step = False
                     return True
         else:
             return False
@@ -377,12 +440,17 @@ class TaskMoveBase(TaskBase):
         if not self.finished:
             self.finished = finished and (self.phase < len(self.sequence) - 1)
             return False
+        elif not self.can_step:
+            if self.playback_controller.can_step():
+                self.can_step = True
+                self.playback_controller.step()            
         elif not self.trajectory_planner.update_started():
             self.update_eef_trajectory_start(t, q, qv, sensors)
             return False
         elif self.trajectory_planner.update_done():
             self.update_eef_trajectory_end(t)
             self.finished = False
+            self.can_step = False
             return True
         return False
 
@@ -394,6 +462,10 @@ class TaskMoveBase(TaskBase):
             joints = self.check_joints(t)
             self.finished = contacts and joints
             return False
+        # elif not self.can_step:
+        #     if self.playback_controller.can_step():
+        #         self.can_step = True
+        #         self.playback_controller.step()                        
         else:
             if not self.trajectory_planner or not self.trajectory_planner.computation_started():
                 self.get_tmp_friction_cones()
@@ -409,6 +481,7 @@ class TaskMoveBase(TaskBase):
             elif self.trajectory_planner.computation_done():
                 self.compute_base_trajectory_finish(t)
                 self.finished = False
+                self.can_step = False
                 return True
         return False
 
@@ -501,4 +574,5 @@ class TaskMoveBase(TaskBase):
 
                 self.publisher.publish(marker_array)
         self.tick(t, q, qv, sensors)
+        spin_once(self.node, timeout_sec=0)
         return self.control
