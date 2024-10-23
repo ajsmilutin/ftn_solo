@@ -63,8 +63,8 @@ class RobotConnector(Connector):
         self.robot.initialize(
             np.array([0]*self.robot.joints.number_motors, dtype=np.float64))
         self.running = True
-        self.dT = 0.001
-        self.nanoseconds = self.dT*1e9
+        self.dt = 0.001
+        self.nanoseconds = self.dt*1e9
 
     def get_data(self):
         self.robot.parse_sensor_data()
@@ -81,14 +81,14 @@ class RobotConnector(Connector):
         return not (self.robot.has_error)
 
     def step(self):
-        self.robot.send_command_and_wait_end_of_cycle(self.dT)
+        self.robot.send_command_and_wait_end_of_cycle(self.dt)
         return True
 
     def num_joints(self):
         return self.robot.joints.number_motors
 
     def get_sensor_readings(self):
-        q = self.robot.imu_data.attitude_quaternion
+        q = self.robot.imu.attitude_quaternion
         data = SensorData()
         data.imu_data.attitude = np.array([q[3], q[0], q[1], q[2]])
         return data
@@ -375,7 +375,7 @@ class ConnectorNode(Node):
             rpy = self.get_parameter(
                 'rpy').get_parameter_value().double_array_value
             # Can go lower if we set niceness
-            self.allowed_time = 0.025
+            self.allowed_time = 0.1
             if hardware.lower() == 'mujoco':
                 self.connector = MujocoConnector(robot_version, self.get_logger(),
                                                  pos=pos, rpy=rpy, **self.config["mujoco"])
@@ -386,9 +386,10 @@ class ConnectorNode(Node):
             niceness = os.nice(0)
             niceness = os.nice(-15-niceness)
             self.get_logger().info("Setting niceness to {}".format(niceness))
-            self.allowed_time = 0.001
+            self.allowed_time = 0.002
             self.connector = RobotConnector(robot_version,  self.get_logger())
 
+        self.get_logger().info("Allowed time to run is {}".format(self.allowed_time))
         if task == 'joint_spline':
             self.task = TaskJointSpline(self.connector.num_joints(),
                                         robot_version, self.config)
@@ -433,28 +434,18 @@ class ConnectorNode(Node):
                         self.clock.clock.nanosec = self.clock.clock.nanosec % 1000000000
                         self.time_publisher.publish(self.clock)
                     c += 1
-                    if (c % 50 == 0):
+                    if (c % 20 == 0):
+                        stamp = self.get_clock().now().to_msg()
                         if self.time_publisher:
                             joint_state.header.stamp = self.clock.clock
-                        else:
-                            joint_state.header.stamp = self.get_clock().now().to_msg()
-                        joint_state.position = position.tolist()
-                        joint_state.velocity = velocity.tolist()
-                        joint_state.name = self.connector.joint_names
-                        self.join_state_pub.publish(joint_state)
                         if hasattr(self.task, "estimator"):
                             if self.task.estimator and self.task.estimator.initialized():
-                                transform.header.stamp = joint_state.header.stamp
-                                transform.header.frame_id = "world"
-                                transform.child_frame_id = "base_link"
-                                transform.transform.translation = ToVector(
-                                    self.task.estimator.estimated_q[0:3])
-                                transform.transform.rotation.w = self.task.estimator.estimated_q[6]
-                                transform.transform.rotation.x = self.task.estimator.estimated_q[3]
-                                transform.transform.rotation.y = self.task.estimator.estimated_q[4]
-                                transform.transform.rotation.z = self.task.estimator.estimated_q[5]
-                                self.tf_broadcaster.sendTransform(transform)
-                        elif "attitude" in sensors.keys():
+                                self.task.estimator.publish_state(stamp.sec, stamp.nanosec)
+                        else:
+                            joint_state.position = position.tolist()
+                            joint_state.velocity = velocity.tolist()
+                            joint_state.name = self.connector.joint_names
+                            self.join_state_pub.publish(joint_state)
                             transform.header.stamp = joint_state.header.stamp
                             transform.header.frame_id = "world"
                             transform.child_frame_id = "base_link"
@@ -466,7 +457,7 @@ class ConnectorNode(Node):
                             transform.transform.rotation.z = sensors.imu_data.attitude[3]
                             self.tf_broadcaster.sendTransform(transform)
             except TimeoutException as e:
-                print("Timed out!")
+                self.get_logger().error("====== TIMED OUT! ======")
                 exit()
 
             self.connector.set_torques(torques)
