@@ -87,7 +87,7 @@ cartesian_controller:
   #      0.05082791, 0.09970842, 0.09362089,
   #      0.15870984, 0.08582857, 0.08365718]
   friction_cutoff: 0.1
-  max_control: 1.8  
+  max_control: 2.2
 
 crawl:
   - motions:  
@@ -115,7 +115,6 @@ crawl:
       position: [0.36, -0.14, 0.08]
       orientation: [0.0,  -0.707, 0,  0.707 ] # x, y, z, w
     duration: 2
-    torso_height: 0.19
 
   - motions:  
     - eef: 10
@@ -132,7 +131,6 @@ crawl:
       position: [-0.36, 0.14, 0.15]
       orientation: [0.0,  0.707, 0,  0.707 ] # x, y, z, w
     duration: 2    
-
   - motions:  
     - eef: 18
       position: [0.36, -0.14, 0.15]
@@ -184,7 +182,7 @@ crawl:
     duration: 2
 
   - motions: []
-    duration: 5
+    duration: 2
 
   - motions: []
-    duration: 5
+    duration: 2
