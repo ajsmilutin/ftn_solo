@@ -15,7 +15,7 @@ import proxsuite
 from ftn_solo.utils.types import FrictionCone
 import rclpy
 from sensor_msgs.msg import Joy
-
+from scipy.linalg import expm
 
 class Estimator:
     def __init__(self, robot) -> None:
@@ -131,8 +131,12 @@ class TaskMoveBase(TaskBase):
         else: self.des_linear_velocity[0] = 0
         if msg.axes[3] > 0.05 or msg.axes[3] < -0.05:
             self.des_angular_velocity[0] = msg.axes[3] * 0.3
+        else:
+            self.des_angular_velocity[0] = 0
         if msg.axes[4] > 0.05 or msg.axes[4] < -0.05:
             self.des_angular_velocity[1] = -msg.axes[4] * 0.3
+        else:   
+            self.des_angular_velocity[1] = 0
         if msg.buttons[6]:
             self.des_angular_velocity[2] = msg.buttons[6] * 0.2
         elif msg.buttons[7]:
@@ -169,7 +173,7 @@ class TaskMoveBase(TaskBase):
     def compute_base_trajectory(self, t, q, qv):
         self.qp = proxsuite.proxqp.dense.QP(
             self.robot.pin_robot.nv*2-6+4*3, self.robot.pin_robot.nv+4*3, 4*self.num_faces, False, proxsuite.proxqp.dense.HessianType.Diagonal)
-
+        self.des_q = self.estimator.estimated_q
         for index in self.robot.end_eff_ids:
             self.friction_cones[index] = FrictionCone(0.8, self.num_faces, 
                 self.robot.pin_robot.data.oMf[index].translation, np.eye(3))
@@ -186,18 +190,26 @@ class TaskMoveBase(TaskBase):
         return t >= self.transition_end
 
     def moving_base(self, t, q, qv):
-        position = self.robot.pin_robot.data.oMf[self.base_index].translation
-        
         Kp = 100
         Kd = 20
         dt = t - self.previous_t
-        position = position + self.des_linear_velocity * dt
-        orientation = pin.log(self.robot.pin_robot.data.oMf[self.base_index].rotation)
-        orientation = orientation + self.des_angular_velocity * dt 
 
-        ades = Kp * (position - self.estimator.estimated_q[:3]) + Kd * (self.des_linear_velocity - self.estimator.estimated_qv[:3])
-        alphades = Kp * (orientation - pin.log(pin.Quaternion(self.estimator.estimated_q[3:7]).matrix())) \
+        self.des_qv = np.zeros(self.robot.pin_robot.nv)
+        self.des_qv[0:3] = self.des_linear_velocity
+        self.des_qv[3:6] = self.des_angular_velocity
+        self.des_q = pin.integrate(self.robot.pin_robot.model, self.des_q, self.des_qv * dt)
+
+        des_position = self.des_q[0:3]
+        current_position = self.estimator.estimated_q[:3]
+        des_orientation = pin.Quaternion(self.des_q[3:7]).matrix()
+        current_orientation = pin.Quaternion(self.estimator.estimated_q[3:7]).matrix()
+
+        ades = Kp * (des_position - current_position) + Kd * (self.des_linear_velocity - self.estimator.estimated_qv[:3])
+        
+        alphades = Kp * (np.matmul(current_orientation, pin.log(
+                    np.matmul(current_orientation.T, des_orientation)))) \
                     + Kd*(self.des_angular_velocity - self.estimator.estimated_qv[3:6])
+
         dim = self.qp.model.dim
         n_eq = self.qp.model.n_eq
         nv = self.robot.pin_robot.nv
