@@ -1,0 +1,6 @@
+source;share/ftn_solo/hook/pythonpath.ps1
+source;share/ftn_solo/hook/pythonpath.dsv
+source;share/ftn_solo/hook/pythonpath.sh
+source;share/ftn_solo/hook/ament_prefix_path.ps1
+source;share/ftn_solo/hook/ament_prefix_path.dsv
+source;share/ftn_solo/hook/ament_prefix_path.sh

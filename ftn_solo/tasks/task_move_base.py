@@ -26,8 +26,11 @@ from ftn_solo_control import (
     JointMotion,
     WholeBodyController,
     MotionsVector,
-    TrajectoryPlanner
+    TrajectoryPlanner,
+    publish_cone_marker
 )
+from copy import deepcopy
+
 
 SQUARE = 3
 EX = 0
@@ -235,6 +238,8 @@ class TaskMoveBase(TaskBase):
             for motion in self.sequence[self.phase].motions:
                 if type(motion) is EEFMotionData:
                     del self.next_friction_cones[motion.eef_index]
+        for c in self.next_friction_cones:
+            publish_cone_marker(c.data(), show_dual=False)                    
 
     def update_phase(self):
         self.fix_eef()
@@ -412,6 +417,32 @@ class TaskMoveBase(TaskBase):
                     self.can_step = True
                     self.playback_controller.step()
             elif not self.estimator:
+                marker_array = MarkerArray()
+                marker = Marker()
+                marker.header.frame_id = "world"
+                marker.action = Marker.ADD
+                marker.type = Marker.CUBE
+                marker.ns = "surface"
+                print("marker")
+                marker.color = ColorRGBA(r=143.0/255.0, g=240.0/255.0, b=164.0/255.0, a=1.0)
+                print("color")
+                marker.scale.x = 1.0
+                marker.scale.y = 1.0
+                marker.scale.z = 0.01
+                marker.pose.position.x = 0.0
+                marker.pose.position.y = 0.0
+                marker.pose.position.z = -0.005
+                marker.id = 150
+                marker_array.markers.append(marker)
+                marker2 = deepcopy(marker)
+                marker2.pose.position.x = 0.20
+                marker2.pose.orientation.x = 0.0
+                marker2.pose.orientation.y = -0.5
+                marker2.pose.orientation.z = 0.0
+                marker2.pose.orientation.w = 0.866
+                marker2.id = 151
+                marker_array.markers.append(marker2)
+                self.publisher.publish(marker_array)
                 self.estimator = FixedPointsEstimator(
                     0.001,
                     self.robot.pin_robot.model,
@@ -459,6 +490,7 @@ class TaskMoveBase(TaskBase):
             t, self.robot.pin_robot.model, self.robot.pin_robot.data, self.estimator, self.motions, self.control)
         if not self.finished:
             contacts = self.check_contacts(t)
+            print("contacts :", contacts)
             joints = self.check_joints(t)
             self.finished = contacts and joints
             return False
