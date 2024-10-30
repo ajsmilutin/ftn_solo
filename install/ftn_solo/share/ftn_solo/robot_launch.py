@@ -38,17 +38,6 @@ def launch_setup(context, *args, **kwargs):
             ],
         ),
         Node(
-            namespace="ik",
-            package="robot_state_publisher",
-            executable="robot_state_publisher",
-            name="robot_state_publisher",
-            output="screen",
-            parameters=[
-                {"robot_description": robot_desc, "use_sim_time": use_sim_time,
-                 "frame_prefix": "ik/"},
-            ],
-        ),
-        Node(
             package="rviz2",
             executable="rviz2",
             name="rviz2",
@@ -58,7 +47,7 @@ def launch_setup(context, *args, **kwargs):
                     get_package_share_directory("ftn_solo"),
                     "config",
                     "rviz",
-                    "viz.rviz",
+                    "robot.rviz",
                 ),
             ],
             parameters=[{"use_sim_time": use_sim_time}],
@@ -79,7 +68,13 @@ def launch_setup(context, *args, **kwargs):
                     "config": config
                 }
             ],
-            output="log"
+            output="screen"
+        ),
+        Node(
+            package="ftn_solo",
+            executable="joystick_node",
+            name="joystick_node",
+            output="screen"
         ),
         Node(
             package='joy',
@@ -87,29 +82,13 @@ def launch_setup(context, *args, **kwargs):
             name='joy_node',
             parameters=[
                 {
-                    'dev': '/dev/input/js0',
-                    'deadzone': 0.05
+                    'dev': '/dev/input/js0',  
+                    'deadzone': 0.05,        
+                    'autorepeat_rate': 20.0  
                 }
             ],
             output='screen'
         ),
-        Node(
-            package='rviz_2d_overlay_plugins',
-            executable='string_to_overlay_text',
-            name='string_to_overlay_text_1',
-            output='screen',
-            parameters=[
-                {"string_topic": "status"},
-                {"text_size": 24},
-                # colors can be: r,g,b,w,k,p,y (red,green,blue,white,black,pink,yellow)
-                {"fg_color": "b"},
-
-            ],
-        ),
-        Node(package="tf2_ros",
-             executable="static_transform_publisher",
-             arguments=["0", "0",  "0",  "0", "-1.0471", "0", "world", "viz"]),
-
     ]
 
 

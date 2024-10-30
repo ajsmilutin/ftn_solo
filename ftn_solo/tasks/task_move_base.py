@@ -27,7 +27,7 @@ from ftn_solo_control import (
     MotionsVector,
     TrajectoryPlanner
 )
-import yaml
+from copy import deepcopy
 
 SQUARE = 2
 EX = 0
@@ -218,6 +218,8 @@ class TaskMoveBase(TaskWithInitPose):
             for motion in self.sequence[self.phase].motions:
                 if type(motion) is EEFMotionData:
                     del self.next_friction_cones[motion.eef_index]
+        for c in self.next_friction_cones:
+            publish_cone_marker(c.data(), show_dual=False)                    
 
     def update_phase(self):
         self.fix_eef()
@@ -399,6 +401,37 @@ class TaskMoveBase(TaskWithInitPose):
                     self.can_step = True
                     self.playback_controller.step()
             elif not self.estimator:
+ 		marker_array = MarkerArray()
+                marker = Marker()
+                marker.header.frame_id = "world"
+                marker.action = Marker.ADD
+                marker.type = Marker.CUBE
+                marker.ns = "surface"
+                print("marker")
+                marker.color = ColorRGBA(r=210.0/255.0, g=249.0/255.0, b=219.0/255.0, a=1.0)
+                print("color")
+                marker.scale.x = 1.0
+                marker.scale.y = 1.0
+                marker.scale.z = 0.01
+                marker.pose.position.x = 0.0
+                marker.pose.position.y = 0.0
+                marker.pose.position.z = -0.005
+                marker.id = 150
+                marker_array.markers.append(marker)
+                marker2 = deepcopy(marker)
+                marker2.scale.x = 0.6
+                marker2.scale.y = 1.0
+                marker2.scale.z = 0.6
+                marker2.pose.position.x = 0.75
+                marker2.pose.position.y = 0.0
+                marker2.pose.position.z = 0.3
+                marker2.pose.orientation.x = 0.0
+                marker2.pose.orientation.y = 0.0
+                marker2.pose.orientation.z = 0.0
+                marker2.pose.orientation.w = 1.0
+                marker2.id = 151
+                marker_array.markers.append(marker2)
+                self.publisher.publish(marker_array)
                 self.status_publisher.publish(
                     String(data="Creating estimator"))
                 self.estimator = FixedPointsEstimator(
