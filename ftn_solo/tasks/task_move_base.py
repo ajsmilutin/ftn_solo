@@ -34,7 +34,6 @@ EX = 0
 TRIANGLE = 3
 CIRCLE = 1
 
-
 class MotionData:
     def __init__(self, config):
         self.positions = []
