@@ -168,7 +168,7 @@ class TaskMoveBase(TaskBase):
         self.tf_broadcaster = TransformBroadcaster(self.node)
         self.base_index = self.robot.pin_robot.model.getFrameId("base_link")
         self.initialized = False
-        self.num_faces = 8
+        self.num_faces = 6
         self.friction_coefficient = 0.9
         self.torso_height = 0.2
         self.friction_cones = dict()
@@ -424,7 +424,7 @@ class TaskMoveBase(TaskBase):
                 marker.type = Marker.CUBE
                 marker.ns = "surface"
                 print("marker")
-                marker.color = ColorRGBA(r=143.0/255.0, g=240.0/255.0, b=164.0/255.0, a=1.0)
+                marker.color = ColorRGBA(r=210.0/255.0, g=249.0/255.0, b=219.0/255.0, a=1.0)
                 print("color")
                 marker.scale.x = 1.0
                 marker.scale.y = 1.0
@@ -436,13 +436,19 @@ class TaskMoveBase(TaskBase):
                 marker_array.markers.append(marker)
                 marker2 = deepcopy(marker)
                 marker2.pose.position.x = 0.20
+                marker2.scale.x = 0.76
                 marker2.pose.orientation.x = 0.0
                 marker2.pose.orientation.y = -0.5
                 marker2.pose.orientation.z = 0.0
                 marker2.pose.orientation.w = 0.866
                 marker2.id = 151
                 marker_array.markers.append(marker2)
-                self.publisher.publish(marker_array)
+                marker3 = deepcopy(marker)
+                marker3.pose.position.x = 0.89
+                marker3.pose.position.z = 0.325
+                marker3.id = 152                
+                marker_array.markers.append(marker3)
+                self.publisher.publish(marker_array)                
                 self.estimator = FixedPointsEstimator(
                     0.001,
                     self.robot.pin_robot.model,
@@ -489,8 +495,7 @@ class TaskMoveBase(TaskBase):
         self.control = self.controller.compute(
             t, self.robot.pin_robot.model, self.robot.pin_robot.data, self.estimator, self.motions, self.control)
         if not self.finished:
-            contacts = self.check_contacts(t)
-            print("contacts :", contacts)
+            contacts = self.check_contacts(t)            
             joints = self.check_joints(t)
             self.finished = contacts and joints
             return False

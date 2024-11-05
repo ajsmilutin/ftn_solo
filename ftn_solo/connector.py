@@ -275,7 +275,7 @@ class MujocoConnector(SimulationConnector):
         self.touch_sensors = ["fl", "fr", "hl", "hr"]
         if self.use_gui:
             self.viewer = mujoco.viewer.launch_passive(
-                self.model, self.data, show_left_ui=False, show_right_ui=False, key_callback=self.key_callback)
+                self.model, self.data, show_left_ui=True, show_right_ui=False, key_callback=self.key_callback)
             self.viewer.opt.flags[mujoco.mjtVisFlag.mjVIS_CONTACTFORCE]=True
 
     def key_callback(self, keycode):
@@ -363,6 +363,8 @@ class ConnectorNode(Node):
             except Exception as exc:
                 raise exc
 
+        niceness = os.nice(0)
+        niceness = os.nice(-15-niceness)
         if hardware.lower() != "robot":
             use_gui = self.get_parameter(
                 'use_gui').get_parameter_value().bool_value
@@ -375,7 +377,7 @@ class ConnectorNode(Node):
             rpy = self.get_parameter(
                 'rpy').get_parameter_value().double_array_value
             # Can go lower if we set niceness
-            self.allowed_time = 0.1
+            self.allowed_time = 100.0
             if hardware.lower() == 'mujoco':
                 self.connector = MujocoConnector(robot_version, self.get_logger(),
                                                  pos=pos, rpy=rpy, **self.config["mujoco"])
@@ -383,8 +385,7 @@ class ConnectorNode(Node):
                 self.connector = PybulletConnector(
                     robot_version, self.get_logger(), fixed=self.fixed, pos=pos, rpy=rpy)
         else:
-            niceness = os.nice(0)
-            niceness = os.nice(-15-niceness)
+
             self.get_logger().info("Setting niceness to {}".format(niceness))
             self.allowed_time = 0.002
             self.connector = RobotConnector(robot_version,  self.get_logger())

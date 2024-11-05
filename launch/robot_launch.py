@@ -28,41 +28,41 @@ def launch_setup(context, *args, **kwargs):
     with open(resources.urdf_path, "r") as infp:
         robot_desc = infp.read()
     return [
-        Node(
-            package="robot_state_publisher",
-            executable="robot_state_publisher",
-            name="robot_state_publisher",
-            output="screen",
-            parameters=[
-                {"robot_description": robot_desc, "use_sim_time": use_sim_time}
-            ],
-        ),
-        Node(
-            namespace="ik",
-            package="robot_state_publisher",
-            executable="robot_state_publisher",
-            name="robot_state_publisher",
-            output="screen",
-            parameters=[
-                {"robot_description": robot_desc, "use_sim_time": use_sim_time,
-                 "frame_prefix": "ik/"},
-            ],
-        ),
-        Node(
-            package="rviz2",
-            executable="rviz2",
-            name="rviz2",
-            arguments=[
-                "-d",
-                os.path.join(
-                    get_package_share_directory("ftn_solo"),
-                    "config",
-                    "rviz",
-                    "viz.rviz",
-                ),
-            ],
-            parameters=[{"use_sim_time": use_sim_time}],
-        ),
+        # Node(
+        #     package="robot_state_publisher",
+        #     executable="robot_state_publisher",
+        #     name="robot_state_publisher",
+        #     output="screen",
+        #     parameters=[
+        #         {"robot_description": robot_desc, "use_sim_time": use_sim_time}
+        #     ],
+        # ),
+        # Node(
+        #     namespace="ik",
+        #     package="robot_state_publisher",
+        #     executable="robot_state_publisher",
+        #     name="robot_state_publisher",
+        #     output="screen",
+        #     parameters=[
+        #         {"robot_description": robot_desc, "use_sim_time": use_sim_time,
+        #          "frame_prefix": "ik/"},
+        #     ],
+        # ),
+        # Node(
+        #     package="rviz2",
+        #     executable="rviz2",
+        #     name="rviz2",
+        #     arguments=[
+        #         "-d",
+        #         os.path.join(
+        #             get_package_share_directory("ftn_solo"),
+        #             "config",
+        #             "rviz",
+        #             "wall_viz.rviz",
+        #         ),
+        #     ],
+        #     parameters=[{"use_sim_time": use_sim_time}],
+        # ),
         Node(
             package="ftn_solo",
             executable="connector_node",
@@ -93,9 +93,9 @@ def launch_setup(context, *args, **kwargs):
             ],
             output='screen'
         ),
-        Node(package="tf2_ros",
-             executable="static_transform_publisher",
-             arguments=["0", "0",  "0",  "0", "-1.0471", "0", "world", "viz"]),
+        # Node(package="tf2_ros",
+        #      executable="static_transform_publisher",
+        #      arguments=["0", "0",  "0",  "0", "-1.0471", "0", "world", "viz"]),
 
     ]
 
