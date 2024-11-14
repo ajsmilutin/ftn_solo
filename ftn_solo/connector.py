@@ -91,6 +91,7 @@ class RobotConnector(Connector):
         q = self.robot.imu.attitude_quaternion
         data = SensorData()
         data.imu_data.attitude = np.array([q[3], q[0], q[1], q[2]])
+        data.imu_data.angular_velocity =self.robot.imu.gyroscope
         return data
 
 
