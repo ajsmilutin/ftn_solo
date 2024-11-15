@@ -164,7 +164,8 @@ class TaskMoveBase(TaskBase):
         self.estimator = None
         self.trajectory_planner = None
         self.publisher = self.node.create_publisher(MarkerArray, "markers", 10)
-        self.status_publisher = self.node.create_publisher(String, "status", 10)
+        self.status_publisher = self.node.create_publisher(
+            String, "status", 10)
         self.pose_publisher = self.node.create_publisher(
             PoseArray, "origin_pose", 10)
         self.tf_broadcaster = TransformBroadcaster(self.node)
@@ -172,7 +173,7 @@ class TaskMoveBase(TaskBase):
         self.initialized = False
         self.num_faces = 8
         self.friction_coefficient = 0.9
-        self.torso_height = 0.2
+        self.torso_height = 0.25
         self.friction_cones = dict()
         self.sequence = parse_sequence(self.config["crawl"])
         self.phase = -1
@@ -348,7 +349,7 @@ class TaskMoveBase(TaskBase):
         for motion in self.sequence[self.phase].motions:
             if type(motion) is EEFMotionData:
                 eef_motion = EEFPositionMotion(motion.eef_index, np.array(
-                    [True, True, True], dtype=bool), pin.SE3.Identity(), 1500, 50)
+                    [True, True, True], dtype=bool), pin.SE3.Identity(), 1000, 1)
                 eef_trajectory = SplineTrajectory(True)
                 position = self.robot.pin_robot.data.oMf[motion.eef_index].translation
                 eef_trajectory.add(position, 0)
@@ -357,7 +358,7 @@ class TaskMoveBase(TaskBase):
                     end_position = motion.positions[-1] + \
                         radius*motion.rotation[:, 2]
                     seventy_five = 0.2 * position + 0.8 * end_position
-                    seventy_five = seventy_five + 0.03 * motion.rotation[:, 2]
+                    seventy_five = seventy_five + 0.05 * motion.rotation[:, 2]
                     eef_trajectory.add(seventy_five, 0.75 *
                                        motion.times[0]*duration)
                     eef_trajectory.add(end_position, motion.times[0]*duration)
@@ -430,11 +431,13 @@ class TaskMoveBase(TaskBase):
                 return False
             elif self.estimator.initialized():
                 if not self.trajectory_planner or not self.trajectory_planner.computation_started():
-                    self.status_publisher.publish(String(data="Starting initialization"))
+                    self.status_publisher.publish(
+                        String(data="Starting initialization"))
                     self.compute_base_trajectory_start(t, q, qv, sensors)
                     return False
                 elif self.trajectory_planner.computation_done():
-                    self.status_publisher.publish(String(data="Finished trajectory planning"))
+                    self.status_publisher.publish(
+                        String(data="Finished trajectory planning"))
                     self.compute_base_trajectory_finish(t)
                     self.finished = False
                     self.can_step = False
@@ -443,10 +446,12 @@ class TaskMoveBase(TaskBase):
             return False
 
     def enter_move_base(self, t, q, qv, sensors):
-        self.status_publisher.publish(String(data="Moving base, phase: {}".format(self.phase)))
+        self.status_publisher.publish(
+            String(data="Moving base, phase: {}".format(self.phase)))
 
     def enter_move_eef(self, t, q, qv, sensors):
-        self.status_publisher.publish(String(data="Moving eef, phase: {}".format(self.phase)))
+        self.status_publisher.publish(
+            String(data="Moving eef, phase: {}".format(self.phase)))
 
     def moving_base(self, t, q, qv, sensors):
         finished = all(
@@ -457,20 +462,24 @@ class TaskMoveBase(TaskBase):
             self.finished = finished and (self.phase < len(self.sequence) - 1)
             return False
         elif not self.can_step:
-            self.status_publisher.publish(String(data="Waiting to resume, phase: {}".format(self.phase)))
+            self.status_publisher.publish(
+                String(data="Waiting to resume, phase: {}".format(self.phase)))
             if self.playback_controller.can_step():
                 self.can_step = True
                 self.playback_controller.step()
         elif not self.trajectory_planner.update_started():
-            self.status_publisher.publish(String(data="Starting motion update, phase: {}".format(self.phase)))
+            self.status_publisher.publish(
+                String(data="Starting motion update, phase: {}".format(self.phase)))
             self.update_eef_trajectory_start(t, q, qv, sensors)
             return False
         elif self.trajectory_planner.update_done():
-            self.status_publisher.publish(String(data="Finishing motion update, phase: {}".format(self.phase)))
+            self.status_publisher.publish(
+                String(data="Finishing motion update, phase: {}".format(self.phase)))
             self.update_eef_trajectory_end(t)
             self.finished = False
             self.can_step = False
-            self.status_publisher.publish(String(data="Moving EEF, phase: {}".format(self.phase)))
+            self.status_publisher.publish(
+                String(data="Moving EEF, phase: {}".format(self.phase)))
             return True
         return False
 
@@ -484,7 +493,8 @@ class TaskMoveBase(TaskBase):
             return False
         else:
             if not self.trajectory_planner or not self.trajectory_planner.computation_started():
-                self.status_publisher.publish(String(data="EEF starting comutation done, phase: {}".format(self.phase)))
+                self.status_publisher.publish(
+                    String(data="EEF starting comutation done, phase: {}".format(self.phase)))
                 self.get_tmp_friction_cones()
                 duration = self.sequence[self.phase].duration
                 self.origin_pose = self.get_new_origin(self.tmp_friction_cones)
@@ -498,8 +508,16 @@ class TaskMoveBase(TaskBase):
                 del self.motions[-1]
                 self.init_qp()
                 return False
+            elif not self.can_step:
+                self.status_publisher.publish(
+                    String(data="Waiting to resume, phase: {}".format(self.phase)))
+                if self.playback_controller.can_step():
+                    self.can_step = True
+                    self.playback_controller.step()
+                return False
             elif self.trajectory_planner.computation_done():
-                self.status_publisher.publish(String(data="EEF computation done , phase: {}".format(self.phase)))
+                self.status_publisher.publish(
+                    String(data="EEF computation done , phase: {}".format(self.phase)))
                 self.gen_new_cones()
                 self.base_motions = self.trajectory_planner.motions()
                 for m in self.base_motions:
