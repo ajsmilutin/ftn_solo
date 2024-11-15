@@ -93,6 +93,19 @@ def launch_setup(context, *args, **kwargs):
             ],
             output='screen'
         ),
+        Node(
+            package='rviz_2d_overlay_plugins',
+            executable='string_to_overlay_text',
+            name='string_to_overlay_text_1',
+            output='screen',
+            parameters=[
+                {"string_topic": "status"},
+                {"text_size": 24},
+                # colors can be: r,g,b,w,k,p,y (red,green,blue,white,black,pink,yellow)
+                {"fg_color": "b"},
+
+            ],
+        ),
     ]
 
 
