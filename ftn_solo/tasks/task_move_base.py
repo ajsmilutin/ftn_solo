@@ -172,7 +172,7 @@ class TaskMoveBase(TaskBase):
         self.initialized = False
         self.num_faces = 8
         self.friction_coefficient = 0.9
-        self.torso_height = 0.2
+        self.torso_height = 0.25
         self.friction_cones = dict()
         self.sequence = parse_sequence(self.config["crawl"])
         self.phase = -1
@@ -348,7 +348,7 @@ class TaskMoveBase(TaskBase):
         for motion in self.sequence[self.phase].motions:
             if type(motion) is EEFMotionData:
                 eef_motion = EEFPositionMotion(motion.eef_index, np.array(
-                    [True, True, True], dtype=bool), pin.SE3.Identity(), 1500, 50)
+                    [True, True, True], dtype=bool), pin.SE3.Identity(), 1000, 1)
                 eef_trajectory = SplineTrajectory(True)
                 position = self.robot.pin_robot.data.oMf[motion.eef_index].translation
                 eef_trajectory.add(position, 0)
@@ -357,7 +357,7 @@ class TaskMoveBase(TaskBase):
                     end_position = motion.positions[-1] + \
                         radius*motion.rotation[:, 2]
                     seventy_five = 0.2 * position + 0.8 * end_position
-                    seventy_five = seventy_five + 0.03 * motion.rotation[:, 2]
+                    seventy_five = seventy_five + 0.05 * motion.rotation[:, 2]
                     eef_trajectory.add(seventy_five, 0.75 *
                                        motion.times[0]*duration)
                     eef_trajectory.add(end_position, motion.times[0]*duration)
@@ -498,6 +498,12 @@ class TaskMoveBase(TaskBase):
                 del self.motions[-1]
                 self.init_qp()
                 return False
+            elif not self.can_step:
+                self.status_publisher.publish(String(data="Waiting to resume, phase: {}".format(self.phase)))
+                if self.playback_controller.can_step():
+                    self.can_step = True
+                    self.playback_controller.step()       
+                return False                         
             elif self.trajectory_planner.computation_done():
                 self.status_publisher.publish(String(data="EEF computation done , phase: {}".format(self.phase)))
                 self.gen_new_cones()

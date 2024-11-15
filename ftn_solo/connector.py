@@ -387,7 +387,7 @@ class ConnectorNode(Node):
             niceness = os.nice(0)
             niceness = os.nice(-15-niceness)
             self.get_logger().info("Setting niceness to {}".format(niceness))
-            self.allowed_time = 0.002
+            self.allowed_time = 1.0
             self.connector = RobotConnector(robot_version,  self.get_logger())
 
         self.get_logger().info("Allowed time to run is {}".format(self.allowed_time))
@@ -419,7 +419,6 @@ class ConnectorNode(Node):
                 continue
             position, velocity = self.connector.get_data()
             sensors = self.connector.get_sensor_readings()
-
             if self.time_publisher:
                 elapsed = self.clock.clock.sec + self.clock.clock.nanosec / 1e9
             else:
@@ -435,7 +434,7 @@ class ConnectorNode(Node):
                         self.clock.clock.nanosec = self.clock.clock.nanosec % 1000000000
                         self.time_publisher.publish(self.clock)
                     c += 1
-                    if (c % 20 == 0):
+                    if (c % 2 == 0):
                         stamp = self.get_clock().now().to_msg()
                         if self.time_publisher:
                             joint_state.header.stamp = self.clock.clock
@@ -460,7 +459,6 @@ class ConnectorNode(Node):
             except TimeoutException as e:
                 self.get_logger().error("====== TIMED OUT! ======")
                 exit()
-
             self.connector.set_torques(torques)
             self.connector.step()
 
