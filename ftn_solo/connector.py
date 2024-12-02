@@ -1,43 +1,48 @@
 #!/usr/bin/env python
-import sys
-import mujoco
-import mujoco.viewer
-import pybullet
-import rclpy
-from ftn_solo.utils.bullet_env import BulletEnvWithGround
-from rclpy.node import Node
-from sensor_msgs.msg import JointState
-import numpy as np
-from rosgraph_msgs.msg import Clock
-import time
 import math
-import yaml
-from robot_properties_solo import Resources
-from ftn_solo.tasks import *
-from tf2_ros import TransformBroadcaster
-from geometry_msgs.msg import TransformStamped
-from ftn_solo.utils.conversions import ToVector
-from ftn_solo_control import SensorData
-import xacro
 import os
-from ament_index_python.packages import get_package_share_directory
-
 import signal
+import sys
+import time
 from contextlib import contextmanager
 
-class TimeoutException(Exception): pass
+import mujoco
+import mujoco.viewer
+import numpy as np
+import pybullet
+import rclpy
+import xacro
+import yaml
+from ament_index_python.packages import get_package_share_directory
+from geometry_msgs.msg import Point, Pose, TransformStamped
+from rclpy.node import Node, Publisher
+from rosgraph_msgs.msg import Clock
+from sensor_msgs.msg import JointState
+from std_msgs.msg import Header
+from tf2_ros import TransformBroadcaster
+from visualization_msgs.msg import Marker, MarkerArray
+
+from ftn_solo.tasks import *
+from ftn_solo.utils.bullet_env import BulletEnvWithGround
+from ftn_solo.utils.conversions import ToVector
+from ftn_solo_control import SensorData
+from robot_properties_solo import Resources
+
+
+class TimeoutException(Exception):
+    pass
+
 
 @contextmanager
 def time_limit(seconds):
     def signal_handler(signum, frame):
         raise TimeoutException("Timed out!")
     signal.signal(signal.SIGALRM, signal_handler)
-    signal.setitimer(signal.ITIMER_REAL,seconds)
+    signal.setitimer(signal.ITIMER_REAL, seconds)
     try:
         yield
     finally:
         signal.alarm(0)
-
 
 
 class Connector():
@@ -91,7 +96,7 @@ class RobotConnector(Connector):
         q = self.robot.imu.attitude_quaternion
         data = SensorData()
         data.imu_data.attitude = np.array([q[3], q[0], q[1], q[2]])
-        data.imu_data.angular_velocity =self.robot.imu.gyroscope
+        data.imu_data.angular_velocity = self.robot.imu.gyroscope
         return data
 
 
@@ -274,10 +279,17 @@ class MujocoConnector(SimulationConnector):
         self.running = True
         self.dt = self.model.opt.timestep
         self.touch_sensors = ["fl", "fr", "hl", "hr"]
+        self.vicon_markers = [f'marker_{i}' for i in range(1, 6)]
+        self.marker_size = {}
+        for marker in self.vicon_markers:
+            geomadr = self.model.body(marker).geomadr
+            size = self.model.geom(geomadr).size[0]
+            self.marker_size[marker] = size
+
         if self.use_gui:
             self.viewer = mujoco.viewer.launch_passive(
                 self.model, self.data, show_left_ui=False, show_right_ui=False, key_callback=self.key_callback)
-            self.viewer.opt.flags[mujoco.mjtVisFlag.mjVIS_CONTACTFORCE]=True
+            self.viewer.opt.flags[mujoco.mjtVisFlag.mjVIS_CONTACTFORCE] = True
 
     def key_callback(self, keycode):
         if chr(keycode) == ' ':
@@ -328,6 +340,13 @@ class MujocoConnector(SimulationConnector):
     def is_paused(self):
         return self.paused
 
+    def get_marker_positions(self) -> dict:
+        marker_position = {}
+        for marker in self.vicon_markers:
+            pos = self.data.body(marker).xpos
+            marker_position[marker] = pos
+        return marker_position
+
 
 class ConnectorNode(Node):
     def __init__(self):
@@ -350,6 +369,7 @@ class ConnectorNode(Node):
         self.join_state_pub = self.create_publisher(
             JointState, "/joint_states", 10)
         self.tf_broadcaster = TransformBroadcaster(self)
+        self.maker_pos_pub: Publisher | None = None
         robot_version = self.get_parameter(
             'robot_version').get_parameter_value().string_value
         task = self.get_parameter(
@@ -380,6 +400,8 @@ class ConnectorNode(Node):
             if hardware.lower() == 'mujoco':
                 self.connector = MujocoConnector(robot_version, self.get_logger(),
                                                  pos=pos, rpy=rpy, **self.config["mujoco"])
+                self. maker_pos_pub = self.create_publisher(
+                    MarkerArray, "/vicon_markers", 10)
             elif hardware.lower() == 'pybullet':
                 self.connector = PybulletConnector(
                     robot_version, self.get_logger(), fixed=self.fixed, pos=pos, rpy=rpy)
@@ -401,11 +423,38 @@ class ConnectorNode(Node):
             self.task = TaskDrawShapes(self.connector.num_joints(),
                                        robot_version, self.config)
         else:
-            self.logger.error(
+            self.get_logger().error(
                 'Unknown task selected!!! Switching to joint_spline task!')
             self.task = TaskJointSpline(
                 robot_version, "/home/ajsmilutin/solo/solo_ws/src/ftn_solo/config/controllers/eurobot_demo.yaml")
         self.task.dt = self.connector.dt
+
+    def generate_marker_array(self):
+        marker_array = MarkerArray()
+        header = Header()
+        header.stamp = self.clock.clock
+        header.frame_id = "world"
+        marker_pos = self.connector.get_marker_positions()
+        for name, pos in marker_pos.items():
+            marker = Marker()
+            marker.header = header
+            ids = name.split('_')
+            marker.id = int(ids[1])
+            marker.ns = ids[0]
+            marker.action = Marker.ADD
+            marker.type = Marker.SPHERE
+            marker.pose.position.x = pos[0]
+            marker.pose.position.y = pos[1]
+            marker.pose.position.z = pos[2]
+            marker.scale.x = self.connector.marker_size[name]*2
+            marker.scale.y = self.connector.marker_size[name]*2
+            marker.scale.z = self.connector.marker_size[name]*2
+            marker.color.a = 1.0
+            marker.color.r = 0.5
+            marker.color.g = 0.5
+            marker.color.b = 0.5
+            marker_array.markers.append(marker)
+        return marker_array
 
     def run(self):
         c = 0
@@ -430,7 +479,8 @@ class ConnectorNode(Node):
                     torques = self.task.compute_control(
                         elapsed, position, velocity, sensors)
                     if self.time_publisher:
-                        self.clock.clock.nanosec += int(self.connector.dt * 1000000000)
+                        self.clock.clock.nanosec += int(
+                            self.connector.dt * 1000000000)
                         self.clock.clock.sec += self.clock.clock.nanosec // 1000000000
                         self.clock.clock.nanosec = self.clock.clock.nanosec % 1000000000
                         self.time_publisher.publish(self.clock)
@@ -439,9 +489,13 @@ class ConnectorNode(Node):
                         stamp = self.get_clock().now().to_msg()
                         if self.time_publisher:
                             joint_state.header.stamp = self.clock.clock
+                        if self.maker_pos_pub:
+                            marker_array = self.generate_marker_array()
+                            self.maker_pos_pub.publish(marker_array)
                         if hasattr(self.task, "estimator"):
                             if self.task.estimator and self.task.estimator.initialized():
-                                self.task.estimator.publish_state(stamp.sec, stamp.nanosec)
+                                self.task.estimator.publish_state(
+                                    stamp.sec, stamp.nanosec)
                         else:
                             joint_state.position = position.tolist()
                             joint_state.velocity = velocity.tolist()

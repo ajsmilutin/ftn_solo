@@ -15,6 +15,7 @@ Panels:
         - /RobotModel2
         - /MarkerArray4
         - /MarkerArray4/Namespaces1
+        - /ViconMarkers
       Splitter Ratio: 0.5
     Tree Height: 719
   - Class: rviz_common/Selection
@@ -371,6 +372,18 @@ Visualization Manager:
         History Policy: Keep Last
         Reliability Policy: Reliable
         Value: /force_markers
+      Value: true
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Name: ViconMarkers
+      Namespaces:
+        marker: true
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /vicon_markers
       Value: true
   Enabled: true
   Global Options:
