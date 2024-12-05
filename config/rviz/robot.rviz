@@ -385,6 +385,25 @@ Visualization Manager:
         Reliability Policy: Reliable
         Value: /vicon_markers
       Value: true
+    - Accept NaN Values: false
+      Alpha: 1
+      Arrow Width: 0.25
+      Class: rviz_default_plugins/Wrench
+      Enabled: true
+      Force Arrow Scale: 2
+      Force Color: 204; 51; 51
+      History Length: 1
+      Name: Wrench
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        Filter size: 10
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /force_plate
+      Torque Arrow Scale: 0.02
+      Torque Color: 204; 204; 51
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48

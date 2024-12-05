@@ -2,7 +2,7 @@ mujoco:
   use_gui: true
   start_paused: false
   fixed: false
-  # environment: environments/plane.mjcf
+  environment: environments/plane.mjcf
   environments_package: ftn_solo
 
 poses:

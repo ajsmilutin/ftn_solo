@@ -14,7 +14,7 @@ import rclpy
 import xacro
 import yaml
 from ament_index_python.packages import get_package_share_directory
-from geometry_msgs.msg import Point, Pose, TransformStamped
+from geometry_msgs.msg import TransformStamped, Vector3, WrenchStamped
 from rclpy.node import Node, Publisher
 from rosgraph_msgs.msg import Clock
 from sensor_msgs.msg import JointState
@@ -285,6 +285,7 @@ class MujocoConnector(SimulationConnector):
             geomadr = self.model.body(marker).geomadr
             size = self.model.geom(geomadr).size[0]
             self.marker_size[marker] = size
+        self.force_plate = "force_plate"
 
         if self.use_gui:
             self.viewer = mujoco.viewer.launch_passive(
@@ -347,6 +348,16 @@ class MujocoConnector(SimulationConnector):
             marker_position[marker] = pos
         return marker_position
 
+    def get_force_plate_data(self):
+        data_raw = self.data.body(self.force_plate).cfrc_ext
+        axes = ["x", "y", "z"]
+        return_data: dict = {}
+        for i, vector in enumerate(["force", "torque"]):
+            return_data[vector] = {}
+            for j, axis in enumerate(axes):
+                return_data[vector][axis] = data_raw[3*i+j]
+        return return_data
+
 
 class ConnectorNode(Node):
     def __init__(self):
@@ -370,6 +381,7 @@ class ConnectorNode(Node):
             JointState, "/joint_states", 10)
         self.tf_broadcaster = TransformBroadcaster(self)
         self.maker_pos_pub: Publisher | None = None
+        self.force_plate_pub: Publisher | None = None
         robot_version = self.get_parameter(
             'robot_version').get_parameter_value().string_value
         task = self.get_parameter(
@@ -400,8 +412,10 @@ class ConnectorNode(Node):
             if hardware.lower() == 'mujoco':
                 self.connector = MujocoConnector(robot_version, self.get_logger(),
                                                  pos=pos, rpy=rpy, **self.config["mujoco"])
-                self. maker_pos_pub = self.create_publisher(
+                self.maker_pos_pub = self.create_publisher(
                     MarkerArray, "/vicon_markers", 10)
+                self.force_plate_pub = self.create_publisher(
+                    WrenchStamped, "/force_plate", 10)
             elif hardware.lower() == 'pybullet':
                 self.connector = PybulletConnector(
                     robot_version, self.get_logger(), fixed=self.fixed, pos=pos, rpy=rpy)
@@ -456,6 +470,16 @@ class ConnectorNode(Node):
             marker_array.markers.append(marker)
         return marker_array
 
+    def generate_force_plate_data(self):
+        header = Header()
+        header.stamp = self.clock.clock
+        header.frame_id = "world"
+        data_dict = self.connector.get_force_plate_data()
+        force_plate_data = WrenchStamped(header=header)
+        force_plate_data.wrench.force = Vector3(**data_dict["force"])
+        force_plate_data.wrench.torque = Vector3(**data_dict["torque"])
+        return force_plate_data
+
     def run(self):
         c = 0
         start = self.get_clock().now()
@@ -492,6 +516,9 @@ class ConnectorNode(Node):
                         if self.maker_pos_pub:
                             marker_array = self.generate_marker_array()
                             self.maker_pos_pub.publish(marker_array)
+                        if self.force_plate_pub:
+                            force_plate_data = self.generate_force_plate_data()
+                            self.force_plate_pub.publish(force_plate_data)
                         if hasattr(self.task, "estimator"):
                             if self.task.estimator and self.task.estimator.initialized():
                                 self.task.estimator.publish_state(
