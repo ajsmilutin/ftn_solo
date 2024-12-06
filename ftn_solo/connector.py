@@ -279,7 +279,7 @@ class MujocoConnector(SimulationConnector):
         self.running = True
         self.dt = self.model.opt.timestep
         self.touch_sensors = ["fl", "fr", "hl", "hr"]
-        self.vicon_markers = [f'marker_{i}' for i in range(1, 6)]
+        self.vicon_markers = [f'marker_{i}' for i in range(5)]
         self.marker_size = {}
         for marker in self.vicon_markers:
             geomadr = self.model.body(marker).geomadr
