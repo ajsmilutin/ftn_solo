@@ -20,7 +20,8 @@ def launch_setup(context, *args, **kwargs):
     hardware = hardware.perform(context)
     config = config.perform(context)
     if not os.path.isfile(config):
-        config = os.path.join(get_package_share_directory("ftn_solo"), "config", "tasks", config)
+        config = os.path.join(get_package_share_directory(
+            "ftn_solo"), "config", "tasks", config)
 
     use_sim_time = hardware.lower() != "robot"
     resources = Resources(robot_version_value)
@@ -34,6 +35,17 @@ def launch_setup(context, *args, **kwargs):
             output="screen",
             parameters=[
                 {"robot_description": robot_desc, "use_sim_time": use_sim_time}
+            ],
+        ),
+        Node(
+            namespace="ik",
+            package="robot_state_publisher",
+            executable="robot_state_publisher",
+            name="robot_state_publisher",
+            output="screen",
+            parameters=[
+                {"robot_description": robot_desc, "use_sim_time": use_sim_time,
+                 "frame_prefix": "ik/"},
             ],
         ),
         Node(
@@ -68,6 +80,18 @@ def launch_setup(context, *args, **kwargs):
                 }
             ],
             output="log"
+        ),
+        Node(
+            package='joy',
+            executable='joy_node',
+            name='joy_node',
+            parameters=[
+                {
+                    'dev': '/dev/input/js0',
+                    'deadzone': 0.05
+                }
+            ],
+            output='screen'
         ),
     ]
 
