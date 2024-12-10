@@ -1,12 +1,15 @@
 import numpy as np
+from rclpy.node import Node
 
 
 def float_or_list(value, num_joints):
     return np.array(value if type(value) is list else [float(value)]*num_joints, dtype=np.float64)
 
 
-class PDWithFrictionCompensation():
+class FeedbackLinearization():
     def __init__(self, robot, yaml_config) -> None:
+        self.node = Node("FL")
+        self.robot = robot
         num_joints = robot.nv - 6
         self.Kp = float_or_list(yaml_config["Kp"], num_joints)
         self.Kd = float_or_list(yaml_config["Kd"], num_joints)
@@ -17,9 +20,11 @@ class PDWithFrictionCompensation():
         self.max_control = float_or_list(
             yaml_config["max_control"], num_joints)
 
-    def compute_control(self, ref_position, ref_velocity, ref_acceleration, position, velocity):
+    def compute_control(self,  ref_position,  ref_velocity, ref_acceleration, position, velocity):
         friction_velocity = np.where(
-            abs(ref_velocity) > self.friction_cutoff, ref_velocity, 0)
-        control = self.Kp * (ref_position - position) + self.Kd * (ref_velocity -
-                                                                   velocity) + self.B * ref_velocity + self.Fv * np.sign(friction_velocity)
+            abs(velocity) > self.friction_cutoff, velocity, 0)
+        qa = ref_acceleration + self.Kp * (ref_position - position) + self.Kd * (ref_velocity -
+                                                                                 velocity)
+        control = np.dot(self.robot.data.M[6:, 6:], qa) + self.robot.data.nle[6:] + \
+            self.B * velocity + self.Fv * np.sign(friction_velocity)
         return np.clip(control, -self.max_control, self.max_control)

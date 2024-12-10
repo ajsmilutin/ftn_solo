@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+
+<mujoco>
+    <worldbody>
+        <light pos="0 0 2"/>
+        <geom type="plane" size="4 4 0.1" material="grid"/>
+        <body name="force_plate" pos="0 0 0.005">
+            <geom type="box" size="0.6 0.6 0.01" material="flat"/>
+        </body>
+    </worldbody>
+</mujoco>
