@@ -15,6 +15,9 @@ class PinocchioWrapper(object):
         self.prev_err = np.inf
         self.delta_error = np.inf
         self.nu = []
+        self.M = np.array([])
+        self.C = np.array([])
+        self.G = np.array([])
 
         self.end_eff_ids = []
         self.end_effector_names = []
@@ -37,6 +40,7 @@ class PinocchioWrapper(object):
         self.k_max = 0.00000002
         self.J = np.zeros((6, 18))
         self.J_list=[]
+        self.max_tau = 1.8
 
     def mass(self, q):
         return pin.crba(self.model, self.data, q)
@@ -116,15 +120,22 @@ class PinocchioWrapper(object):
             k = 0
             return k, k0
 
-    def computeFrameJacobian(self, q):
+    def computeFrameJacobian(self, q,dq):
         pin.computeJointJacobians(self.model, self.data, q)
+        pin.computeJointJacobiansTimeVariation(self.model, self.data, q, dq)
         pin.updateFramePlacements(self.model, self.data)
-        
-        
+
+    def computeNonLinear(self, q, dq):
+        self.M = pin.crba(self.model, self.data, q)
+        self.C = pin.computeCoriolisMatrix(self.model, self.data, q, dq)
+        self.G = pin.computeGeneralizedGravity(self.model, self.data, q)
+    
     
     def get_frame_jacobian(self, frame_id):
         self.J.fill(0)
+        J_dot=np.zeros((6, 18))
         self.J = pin.getFrameJacobian(self.model,self.data,frame_id,self.fr)
+        J_dot = pin.getFrameJacobianTimeVariation(self.model,self.data,frame_id,self.fr)
         self.J[:, :6] = 0
         # self.J[3:,:] = 0
         # self.J= pin.getJointJacobian(self.model, self.data, frame_id, self.fr)
@@ -136,7 +147,7 @@ class PinocchioWrapper(object):
         I = np.identity(self.J.shape[0])
         # self.logger.info("K value: {}".format(k))
         J_damped = np.dot(self.J.T, np.linalg.inv(np.dot(self.J, self.J.T) + k * I))
-        return J_damped
+        return J_damped , self.J, J_dot
     
     def get_damped_jacobian(self,J):    
         J_K = np.dot(J,J.T)
@@ -155,24 +166,56 @@ class PinocchioWrapper(object):
 
     def get_delta_error(self):
         return self.delta_error
+    
+    def get_tau_constraint(self,J_real,J_dot,dq):
+        h = np.dot(self.C[6:,6:], dq[6: ]) + self.G[6:]
+        Jdot_theta = np.dot(J_dot[:,6:], dq[6:])
+        J = J_real[:,6:]
+        zero_block = np.zeros((J.shape[0], J.shape[0]))
+        b = np.concatenate((-h, -Jdot_theta))  
+        a = np.block([
+            [self.M[6:,6:],J.T],
+            [J,zero_block]
+        ])
+
+        epsilon = 1e-6  # Small regularization constant
+        a_reg = a + epsilon * np.eye(a.shape[0])
+
+       
+
+        solve = np.linalg.solve(a_reg, b)
+        ddq = solve[:self.M[6:,6:].shape[0]]
+        lamba = solve[self.M[6:,6:].shape[0]:]
+        
+        tau_constraint = np.dot(J.T, lamba)
+        return tau_constraint
+
 
     def pd_controller(self, ref_pos, ref_vel, position, velocity):
         Kp = 3000000
-        Kd = 300
+        Kd = 200
         
         pos_diff = ref_pos - position
         vel_diff = ref_vel - velocity
-        control = Kp * (pos_diff) + Kd * (vel_diff)
-        return control
 
-    def compute_recrusive_newtone_euler(self, q, dq, ddq,Fv,B):
+        control =  Kp * (pos_diff) + Kd * (vel_diff)
+        return np.concatenate((np.zeros(6),control))
+    
+   
 
-        
-        M = pin.crba(self.model, self.data, q)
-        C = pin.computeCoriolisMatrix(self.model, self.data, q, dq)
-        g = pin.computeGeneralizedGravity(self.model, self.data, q)
-       
-     
-        tau = np.dot(M[6:, 6:], ddq) + np.dot(C[6:, 6:], dq[6:]) + np.dot(Fv,dq[6:]) + B + g[6:]
-     
-        return tau
+    def compute_recrusive_newtone_euler(self, dq, ddq,Fv,B,Jacobian):
+
+        J_M_inv = np.dot(Jacobian,np.linalg.inv(self.M))
+        lambda_matrix = np.linalg.pinv(np.dot(J_M_inv, Jacobian.T))
+        P = np.eye(self.M.shape[0]) - np.dot(np.dot(Jacobian.T, lambda_matrix), J_M_inv)
+        h=np.dot(self.C, dq) +  self.G
+        # h=np.dot(self.C[6:, 6:], dq[6:]) + np.dot(Fv,dq[6:]) + B + self.G[6:]
+
+        # tau = np.dot(self.M[6:, 6:], ddq) + np.dot(self.C[6:, 6:], dq[6:]) + np.dot(Fv,dq[6:]) + B + self.G[6:]
+        tau = np.dot(P, np.dot(self.M, ddq) + h)
+
+        # tau = np.dot(self.data.M[6:, 6:], ddq) + self.data.nle[6:] +  B 
+
+
+        # return np.clip(tau, -self.max_tau, self.max_tau)
+        return tau[6:]

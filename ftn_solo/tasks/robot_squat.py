@@ -216,9 +216,6 @@ class RobotMove(TaskBase):
             
         return pos
     
-
-
-
     
     def compute_control(self, t,position, velocity, sensors):
         
@@ -226,12 +223,11 @@ class RobotMove(TaskBase):
         toqrues = self.joint_controller.rnea(self.steps[self.step],position,velocity,sensors['attitude'])
         self.i+=1
         # if self.joint_controller.get_delta_error() < self.eps:
-        if self.i ==30:
+        if self.i ==300:
             self.step = self.step + 1
             self.i=0
         if self.step == len(self.steps):
             self.step = 1
-        
     
         return toqrues
                 
