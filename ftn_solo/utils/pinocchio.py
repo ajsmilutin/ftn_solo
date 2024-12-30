@@ -138,16 +138,8 @@ class PinocchioWrapper(object):
         J_dot = pin.getFrameJacobianTimeVariation(self.model,self.data,frame_id,self.fr)
         self.J[:, :6] = 0
         # self.J[3:,:] = 0
-        # self.J= pin.getJointJacobian(self.model, self.data, frame_id, self.fr)
-        # self.logger.info("Jacobian: {}".format(self.J))
-        J_K = np.dot(self.J, self.J.T)
-        u, s, vh = np.linalg.svd(J_K)
-        sing_values = np.sqrt(s)
-        k, k0 = self.find_min(sing_values)
-        I = np.identity(self.J.shape[0])
-        # self.logger.info("K value: {}".format(k))
-        J_damped = np.dot(self.J.T, np.linalg.inv(np.dot(self.J, self.J.T) + k * I))
-        return J_damped , self.J, J_dot
+     
+        return  self.J, J_dot
     
     def get_damped_jacobian(self,J):    
         J_K = np.dot(J,J.T)
@@ -192,30 +184,22 @@ class PinocchioWrapper(object):
 
 
     def pd_controller(self, ref_pos, ref_vel, position, velocity):
-        Kp = 3000000
+        Kp = 2000000
         Kd = 200
         
         pos_diff = ref_pos - position
         vel_diff = ref_vel - velocity
 
         control =  Kp * (pos_diff) + Kd * (vel_diff)
-        return np.concatenate((np.zeros(6),control))
+        return control
     
    
 
-    def compute_recrusive_newtone_euler(self, dq, ddq,Fv,B,Jacobian):
+    def compute_recrusive_newtone_euler(self, dq, ddq,Fv,B):
 
-        J_M_inv = np.dot(Jacobian,np.linalg.inv(self.M))
-        lambda_matrix = np.linalg.pinv(np.dot(J_M_inv, Jacobian.T))
-        P = np.eye(self.M.shape[0]) - np.dot(np.dot(Jacobian.T, lambda_matrix), J_M_inv)
-        h=np.dot(self.C, dq) +  self.G
-        # h=np.dot(self.C[6:, 6:], dq[6:]) + np.dot(Fv,dq[6:]) + B + self.G[6:]
-
-        # tau = np.dot(self.M[6:, 6:], ddq) + np.dot(self.C[6:, 6:], dq[6:]) + np.dot(Fv,dq[6:]) + B + self.G[6:]
-        tau = np.dot(P, np.dot(self.M, ddq) + h)
-
+       
+        tau = np.dot(self.M[6:, 6:], ddq) + np.dot(self.C[6:, 6:], dq[6:]) + np.dot(Fv,dq[6:]) + B + self.G[6:]
         # tau = np.dot(self.data.M[6:, 6:], ddq) + self.data.nle[6:] +  B 
 
-
         # return np.clip(tau, -self.max_tau, self.max_tau)
-        return tau[6:]
+        return tau
