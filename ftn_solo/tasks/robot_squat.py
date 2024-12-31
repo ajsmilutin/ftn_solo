@@ -223,7 +223,7 @@ class RobotMove(TaskBase):
         toqrues = self.joint_controller.rnea(self.steps[self.step],position,velocity,sensors['attitude'])
         self.i+=1
         # if self.joint_controller.get_delta_error() < self.eps:
-        if self.i ==30:
+        if self.i ==40:
             self.step = self.step + 1
             self.i=0
         if self.step == len(self.steps):

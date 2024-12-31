@@ -1,5 +1,6 @@
 import numpy as np
 from ftn_solo.utils.pinocchio import PinocchioWrapper
+import time
 
 
 def float_or_list(value, num_joints):
@@ -20,6 +21,8 @@ class RneAlgorithm(PinocchioWrapper):
         self.dq_curr = np.array([])
         self.dq = np.array([])
         self.ndq = np.zeros(18)
+        self.J_real =np.zeros((6, 18))
+        self.J_dot =np.zeros((6, 18))
         self.q_base = np.array([0,0,0,0,0,0,1])
         self.dq_base = np.array([0,0,0,0,0,0])
         self.tau_con = np.zeros(12)
@@ -31,7 +34,8 @@ class RneAlgorithm(PinocchioWrapper):
         self.q = np.concatenate((self.q_base,qcurr))
         self.dq_curr = np.concatenate((self.dq_base,dqcurr))
         self.ndq.fill(0)
-        self.tau_con.fill(0)
+        self.J_real.fill(0)
+        self.J_dot.fill(0)
         new = self.framesForwardKinematics(
             self.q, self.end_eff_ids, steps, self.base_link)
         self.computeFrameJacobian(self.q,self.dq_curr)
@@ -39,22 +43,22 @@ class RneAlgorithm(PinocchioWrapper):
 
         for x,end_eff_id in enumerate(self.end_eff_ids):
             J_real,J_dot = self.get_frame_jacobian(end_eff_id)
-            
             self.dq = np.dot(np.linalg.pinv(J_real), new[x]) 
-            
-            # tau_con = self.get_tau_constraint(J_real, J_dot, self.dq_curr)
 
-            # self.tau_con += tau_con
             self.ndq += self.dq
+            self.J_real += J_real
+            self.J_dot += J_dot
         
-        # self.logger.info("tau_con")
+        # self.logger.info(format(np.linalg.matrix_rank(J_real)))
         q = self.pinIntegrate(self.q, self.ndq)
       
         q_joints = q[7:19]
        
-        ddq = self.pd_controller(q_joints, self.dq[6:18], qcurr, dqcurr)
+        ddq = self.pd_controller(q_joints, self.dq[6:], qcurr, dqcurr)
 
         
-        self.tau = self.compute_recrusive_newtone_euler(self.ndq, ddq,self.Fv,self.B)
+      
+
+        self.tau = self.compute_recrusive_newtone_euler(self.ndq, ddq,self.Fv,self.B,self.J_real[:3,6:],self.J_dot[:3,6:])
         return self.tau 
  

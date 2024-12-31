@@ -138,18 +138,10 @@ class PinocchioWrapper(object):
         J_dot = pin.getFrameJacobianTimeVariation(self.model,self.data,frame_id,self.fr)
         self.J[:, :6] = 0
         # self.J[3:,:] = 0
+        J_dot[:, :6] = 0
      
         return  self.J, J_dot
     
-    def get_damped_jacobian(self,J):    
-        J_K = np.dot(J,J.T)
-        u, s, vh = np.linalg.svd(J_K)
-        sing_values = np.sqrt(s)
-        k, k0 = self.find_min(sing_values)
-       
-        I = np.identity(J.shape[0])
-        J_damped = np.dot(J.T, np.linalg.inv(np.dot(J,J.T) + k * I))
-        return J_damped
 
     def get_acceleration(self, q, dq, tau_ref):
         
@@ -191,15 +183,53 @@ class PinocchioWrapper(object):
         vel_diff = ref_vel - velocity
 
         control =  Kp * (pos_diff) + Kd * (vel_diff)
+        # return np.concatenate((np.zeros(6),control))
         return control
     
    
 
-    def compute_recrusive_newtone_euler(self, dq, ddq,Fv,B):
+    def compute_recrusive_newtone_euler(self, dq, ddq,Fv,B,J,J_dot):
 
-       
+
+        #Projection matrix 
+        # J_M_inv = np.dot(J,np.linalg.inv(self.M[6:, 6:]))
+
+        # lambda_matrix = np.linalg.pinv(np.dot(J_M_inv, J.T))
+        # P = np.eye(12) - np.dot(np.dot(J.T, lambda_matrix), J_M_inv)
+     
+        # h=np.dot(self.C[6:, 6:], dq[6:]) +  self.G[6:]
+        # p_ddq = np.dot(P, ddq) 
+
+        # tau = np.dot(P, np.dot(self.M[6:, 6:], ddq) + h)
+
+
+        #Augmented system 
+        h=np.dot(self.C[6:, 6:], dq[6:]) +  self.G[6:]
+        zero_block = np.zeros((J.shape[0], J.shape[0]))
+        A_aug = np.block([
+            [self.M[6:, 6:], J.T],
+            [J, zero_block]
+            ])
+        
+        dynamics_rhs = np.dot(self.M[6:, 6:], ddq) + h
+        constraint_rhs = -np.dot(J_dot, dq[6:])
+
+        b_aug = np.concatenate([dynamics_rhs, constraint_rhs])
+
+        solution = np.linalg.lstsq(A_aug, b_aug, rcond=1e-6)[0]
+        ddq_test = solution[:12]         # Joint accelerations
+        lambda_vector = solution[12:]  # Constraint forces
+
+        tau = np.dot(self.M[6:, 6:], ddq_test) + h + np.dot(J.T, lambda_vector) + np.dot(Fv,dq[6:]) + B   # Add constraint contribution
+
+
+
+
         tau = np.dot(self.M[6:, 6:], ddq) + np.dot(self.C[6:, 6:], dq[6:]) + np.dot(Fv,dq[6:]) + B + self.G[6:]
-        # tau = np.dot(self.data.M[6:, 6:], ddq) + self.data.nle[6:] +  B 
+
+        # self.logger.info("tau: {}".format(tau))
+        # self.logger.info("tau_test: {}".format(tau_test))
 
         # return np.clip(tau, -self.max_tau, self.max_tau)
+        # return tau[6:]
         return tau
