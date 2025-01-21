@@ -40,7 +40,7 @@ class PinocchioWrapper(object):
         self.k_max = 0.00000002
         self.J = np.zeros((6, 18))
         self.J_list=[]
-        self.max_tau = 1.8
+        # self.max_tau = 20.0
 
     def mass(self, q):
         return pin.crba(self.model, self.data, q)
@@ -104,21 +104,6 @@ class PinocchioWrapper(object):
         
         return self.nu,self.J_list
 
-    def get_Jpsedo(self, J, J_K):
-        J_Kinv = np.linalg.inv(J_K)
-        Jp = np.dot(J.T, J_Kinv)
-        return Jp
-
-    def find_min(self, A):
-        sigma_min = np.min(A)
-        if sigma_min < self.epsilon:
-            k = ((1 - (sigma_min / self.epsilon)**2)) * self.k_max**2
-            k0 = 0
-            return k, k0
-        else:
-            k0 = 10
-            k = 0
-            return k, k0
 
     def computeFrameJacobian(self, q,dq):
         pin.computeJointJacobians(self.model, self.data, q)
@@ -137,7 +122,7 @@ class PinocchioWrapper(object):
         self.J = pin.getFrameJacobian(self.model,self.data,frame_id,self.fr)
         J_dot = pin.getFrameJacobianTimeVariation(self.model,self.data,frame_id,self.fr)
         self.J[:, :6] = 0
-        # self.J[3:,:] = 0
+        self.J[3:,:] = 0
         J_dot[:, :6] = 0
      
         return  self.J, J_dot
@@ -220,11 +205,11 @@ class PinocchioWrapper(object):
         ddq_test = solution[:12]         # Joint accelerations
         lambda_vector = solution[12:]  # Constraint forces
 
-        tau = np.dot(self.M[6:, 6:], ddq_test) + h + np.dot(J.T, lambda_vector) + np.dot(Fv,dq[6:]) + B   # Add constraint contribution
+        # tau = np.dot(self.M[6:, 6:], ddq_test) + h + np.dot(J.T, lambda_vector) + np.dot(Fv,dq[6:]) + B   # Add constraint contribution
 
 
 
-
+# 
         tau = np.dot(self.M[6:, 6:], ddq) + np.dot(self.C[6:, 6:], dq[6:]) + np.dot(Fv,dq[6:]) + B + self.G[6:]
 
         # self.logger.info("tau: {}".format(tau))

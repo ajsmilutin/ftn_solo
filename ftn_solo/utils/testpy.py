@@ -1,65 +1,99 @@
 import numpy as np
+import time
 import matplotlib.pyplot as plt
-import math
-from scipy.spatial.transform import Rotation as R
 
-def cycloid_trajectory(R, T, num_points):
-    """
-    Generate a cycloid trajectory for an end effector.
+from scipy.interpolate import CubicSpline
 
-    Parameters:
-    R (float): Radius of the cycloid (determines the height).
-    T (float): Total duration of the movement.
-    num_points (int): Number of points along the trajectory.
+# Define waypoints for trajectory
+T = 2  # Total duration of trajectory (can be adjusted)\
+y=0.1469
+# Define waypoints for a smooth arc-like trajectory
+#  np.array([0.196, 0.1469, -0.20]), -0.15Z 0.05X
+t_arc_points = np.array([0,1.5,2])
+x_arc_points = np.array([0.126, 0.196, 0.246])  # X positions
+z_arc_points = np.array([-0.20, -0.15, -0.20])  # Z heights (arc)
 
-    Returns:
-    np.ndarray: Array of shape (num_points, 3) representing the 3D trajectory.
-    """
-    t = np.linspace(0, T, num_points)
-    
-    x_o = R * (t - np.sin(t))
-    z_o = R * (1 - np.cos(t))
-    
-    z=-0.2+z_o#Legit
-    x=0.196+x_o
-    
+t_line_points = np.array([1,1.5,2])
+x_line_points = np.array([0.246, 0.196, 0.126])  # X positions
+z_line_points = np.array([-0.20, -0.20, -0.20])  # Z heights (arc)
 
-    y = np.zeros_like(t)  # Assuming movement in x-z plane
+x_arc = CubicSpline(t_arc_points, x_arc_points)
+z_arc = CubicSpline(t_arc_points, z_arc_points)
+x_line = CubicSpline(t_line_points, x_line_points)
+z_line = CubicSpline(t_line_points, z_line_points)
 
+# Plot the splines for visualization
+t_fine_up = np.linspace(0, 1, 5)
+t_fine_down = np.linspace(1, 2, 100)
 
-    d = np.sqrt(x_o**2+z**2)
-    
-    beta = np.arccos(d/0.32)
-
-    teta = np.arccos(abs(z)/d)
-    
-
-    alfa = beta + teta
-
-    
-   
-    angle = np.degrees(alfa)
-
-    print(f"position: {x},{y},{z}")
-    print(angle) 
-
-
-    trajectory = np.vstack((x_o, y, z)).T
-    return trajectory
-
-# Parameters for the cycloid
-R = 0.025  # Radius (height of the cycloid)
-T =  np.pi  # Total duration (in radians)
-num_points = 10  # Number of points in the trajectory
-
-# Generate the trajectory
-trajectory = cycloid_trajectory(R, T, num_points)
-
-# Plot the trajectory
-plt.plot(trajectory[:, 0], trajectory[:, 2])
-plt.xlabel('X Position')
-plt.ylabel('Z Position')
-plt.title('Cycloid Trajectory for End Effector')
+plt.figure(figsize=(10, 6))
+plt.plot(x_arc(t_fine_up), z_arc(t_fine_up), label="Upward Path", color="blue")
+plt.plot(x_arc(t_fine_up), label="X Path", color="yellow")
+plt.plot(x_line(t_fine_down), z_line(t_fine_down), label="Downward Path", color="green")
+plt.scatter(x_arc_points.tolist() + z_arc_points.tolist(), x_line_points.tolist() + z_line_points.tolist(), color='red', label="Waypoints")
+plt.xlabel("X Position")
+plt.ylabel("Z Position")
+plt.title("Spline Visualization: Upward and Downward Paths")
+plt.legend()
 plt.grid()
-plt.axis('equal')
 plt.show()
+
+
+
+
+# Function to evaluate trajectory at any given time t
+
+def get_trajectory(t,T):
+    steps= []
+    T_total = T + 2
+    # Normalize time within [0, T] using modulo
+    t_mod = t % T_total
+
+    # Cubic time scaling    
+    # Fifth-order polynomial time scaling (quintic time scaling)
+    if t_mod <= T:
+        s_t = 10 * (t_mod / T)**3 - 15 * (t_mod / T)**4 + 6 * (t_mod / T)**5
+        x = x_arc(s_t)
+        z = z_arc(s_t)
+    else:
+        t_d = t_mod - T
+        s_t = 10 * (t_d / T)**3 - 15 * (t_d / T)**4 + 6 * (t_d / T)**5
+        x = x_line(s_t)
+        z = z_line(s_t)
+            
+
+    return x, z
+
+# Real-time simulation example
+start_time = time.time()
+# Initialize lists to store data
+time_data = []
+x_data = []
+z_data = []
+x_vel_data = []
+z_vel_data = []
+x_acc_data = []
+z_acc_data = []
+
+while True:
+    # Get current simulation time
+    t = time.time() - start_time
+    leg_position = []
+
+    # Evaluate trajectory at current time
+    x, z= get_trajectory(t,T)
+    print(x,z)  
+   
+
+
+    # leg_position.append([x,y,z])
+   
+    # print(leg_position)
+    
+    # Exit loop after 10 seconds for demonstration
+    if t > 4:
+        break
+
+    # Delay to simulate real-time processing (50 ms per step)
+    time.sleep(0.05)
+
