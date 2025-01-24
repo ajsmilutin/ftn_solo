@@ -40,7 +40,7 @@ class PinocchioWrapper(object):
         self.k_max = 0.00000002
         self.J = np.zeros((6, 18))
         self.J_list=[]
-        # self.max_tau = 20.0
+        self.max_tau = 10.0
 
     def mass(self, q):
         return pin.crba(self.model, self.data, q)
@@ -55,24 +55,20 @@ class PinocchioWrapper(object):
     def pinIntegrate(self, q, v):
         return pin.integrate(self.model, q, v*self.DT)
 
-    def calculate_delta_error(self, goal_position, current_position):
-        curr_error = np.linalg.norm(goal_position - current_position)
-        self.delta_error = abs(curr_error - self.prev_err)
-        self.prev_err = curr_error
-       
+    
 
-    def framesForwardKinematics(self, q, joint_ids, goal_positions, base_frame):
+    def framesForwardKinematics(self, q, dq, joint_ids, goal_positions):
         pin.framesForwardKinematics(self.model, self.data, q)
+        pin.forwardKinematics(self.model, self.data, q, dq)
+        
         self.nu.clear()
         for x,joint_id in enumerate(joint_ids):
-            iBd = self.data.oMf[base_frame]
             iMl = self.data.oMf[joint_id]
-            iMr = iBd.actInv(iMl)
             iMd = iMl.actInv(goal_positions[x])
+            err = iMd.translation - iMl.translation
+            
             self.nu.append(pin.log(iMd).vector)
-            self.calculate_delta_error(
-                goal_positions[x].translation, iMr.translation)
-
+            
         return self.nu
 
     
@@ -114,18 +110,21 @@ class PinocchioWrapper(object):
         self.M = pin.crba(self.model, self.data, q)
         self.C = pin.computeCoriolisMatrix(self.model, self.data, q, dq)
         self.G = pin.computeGeneralizedGravity(self.model, self.data, q)
+        
     
     
     def get_frame_jacobian(self, frame_id):
         self.J.fill(0)
         J_dot=np.zeros((6, 18))
         self.J = pin.getFrameJacobian(self.model,self.data,frame_id,self.fr)
-        J_dot = pin.getFrameJacobianTimeVariation(self.model,self.data,frame_id,self.fr)
+        J_dot = pin.getFrameJacobianTimeVariation(self.model,self.data,frame_id,pin.ReferenceFrame.LOCAL_WORLD_ALIGNED)
+        ades = pin.getFrameAcceleration(self.model, self.data,frame_id,self.fr)
+        # self.logger.info("Ades: {}".format(ades))
+        
         self.J[:, :6] = 0
-        self.J[3:,:] = 0
-        J_dot[:, :6] = 0
+      
      
-        return  self.J, J_dot
+        return  self.J[:3,:], J_dot[:3,:]
     
 
     def get_acceleration(self, q, dq, tau_ref):
@@ -160,12 +159,19 @@ class PinocchioWrapper(object):
         return tau_constraint
 
 
-    def pd_controller(self, ref_pos, ref_vel, position, velocity):
-        Kp = 2000000
-        Kd = 200
+    def pd_controller(self, ref_pos, ref_vel, position, velocity,t):
+        if t < 4:
+            Kp = 400000 + t * 400000 
+            Kd = 200
+        else:
+            Kp = 2000000
+            Kd = 200
         
+        
+       
         pos_diff = ref_pos - position
         vel_diff = ref_vel - velocity
+        # self.logger.info("pos_diff: {}".format(pos_diff))
 
         control =  Kp * (pos_diff) + Kd * (vel_diff)
         # return np.concatenate((np.zeros(6),control))
@@ -188,7 +194,7 @@ class PinocchioWrapper(object):
         # tau = np.dot(P, np.dot(self.M[6:, 6:], ddq) + h)
 
 
-        #Augmented system 
+        # Augmented system 
         h=np.dot(self.C[6:, 6:], dq[6:]) +  self.G[6:]
         zero_block = np.zeros((J.shape[0], J.shape[0]))
         A_aug = np.block([
@@ -205,16 +211,16 @@ class PinocchioWrapper(object):
         ddq_test = solution[:12]         # Joint accelerations
         lambda_vector = solution[12:]  # Constraint forces
 
-        # tau = np.dot(self.M[6:, 6:], ddq_test) + h + np.dot(J.T, lambda_vector) + np.dot(Fv,dq[6:]) + B   # Add constraint contribution
+        tau = np.dot(self.M[6:, 6:], ddq_test) + h + np.dot(J.T, lambda_vector) + np.dot(Fv,dq[6:]) + B   # Add constraint contribution
 
 
 
 # 
-        tau = np.dot(self.M[6:, 6:], ddq) + np.dot(self.C[6:, 6:], dq[6:]) + np.dot(Fv,dq[6:]) + B + self.G[6:]
+        # tau = np.dot(self.M[6:, 6:], ddq) + np.dot(self.C[6:, 6:], dq[6:]) + np.dot(Fv,dq[6:]) + B + self.G[6:]
 
         # self.logger.info("tau: {}".format(tau))
         # self.logger.info("tau_test: {}".format(tau_test))
 
-        # return np.clip(tau, -self.max_tau, self.max_tau)
+        return np.clip(tau, -self.max_tau, self.max_tau)
         # return tau[6:]
         return tau

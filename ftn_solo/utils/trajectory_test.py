@@ -10,14 +10,14 @@ T_total = T_up + T_down
 y_points = 0.1469
 
 # Upward path waypoints with a midpoint
-t_up = np.array([0, T_up / 2, T_up])
-x_up = np.array([0, 0.1, 0.2])  # X position with midpoint
-z_up = np.array([0, 0.05, 0.1])  # Z height (peak) with midpoint
+t_up = np.array([0, 0.5,1])
+x_up = np.array([0.126, 0.196, 0.246])  # X position with midpoint
+z_up = np.array([-0.20, -0.15, -0.20])  # Z height (peak) with midpoint
 
 # Downward path waypoints with a midpoint
-t_down = np.array([T_up, T_up + T_down / 2, T_total])
-x_down = np.array([0.2, 0.1, 0])  # Return to start in X with midpoint
-z_down = np.array([0.1, 0.05, 0])  # Return to ground in Z with midpoint
+t_down = np.array([0, 0.5,1])
+x_down = np.array([0.246, 0.196, 0.126])  # Return to start in X with midpoint
+z_down = np.array([-0.20, -0.20, -0.20])  # Return to ground in Z with midpoint
 
 
 # Create splines for both paths
@@ -74,7 +74,7 @@ z_acc_data = []
 for t in np.linspace(0, 2 * T_total, 500):
     # Evaluate trajectory at current time
     x, z, x_vel, z_vel, x_acc, z_acc = evaluate_trajectory(t)
-
+    print(x_acc)
     # Store data
     time_data.append(t)
     x_data.append(x)

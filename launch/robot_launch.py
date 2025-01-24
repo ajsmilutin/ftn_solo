@@ -12,7 +12,7 @@ def launch_setup(context, *args, **kwargs):
     hardware = LaunchConfiguration("hardware", default="robot")
     fixed = LaunchConfiguration("fixed", default="False")
     start_paused = LaunchConfiguration("start_paused", default="False")
-    pos = LaunchConfiguration("pos", default="[0.0, 0.0, 0.4]")
+    pos = LaunchConfiguration("pos", default="[0.0, 0.0, 0.35]")
     rpy = LaunchConfiguration("rpy", default="[0.0, 0.0, 0.0]")
     task = LaunchConfiguration('task', default='joint_spline')
     config = LaunchConfiguration('config', default='eurobot_demo.yaml')
