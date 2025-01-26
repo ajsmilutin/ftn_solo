@@ -28,7 +28,7 @@ class RneAlgorithm(PinocchioWrapper):
         self.tau_con = np.zeros(12)
        
 
-    def rnea(self, steps, acc,  qcurr, dqcurr,qbase,t):
+    def rnea(self, steps, acc, qcurr, dqcurr,qbase,t,kp):
 
         # qbase = np.array([qbase[1],qbase[2],qbase[3],qbase[0]])
         # self.q = np.concatenate((np.concatenate((self.q_base,qbase)), qcurr))
@@ -55,7 +55,7 @@ class RneAlgorithm(PinocchioWrapper):
       
         q_joints = q[7:19]
        
-        ddq = self.pd_controller(q_joints, self.dq[6:], qcurr, dqcurr,t)
+        ddq = self.pd_controller(q_joints, self.dq[6:], qcurr, dqcurr,t,kp)
 
         
       

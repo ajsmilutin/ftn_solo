@@ -159,12 +159,12 @@ class PinocchioWrapper(object):
         return tau_constraint
 
 
-    def pd_controller(self, ref_pos, ref_vel, position, velocity,t):
+    def pd_controller(self, ref_pos, ref_vel, position, velocity,t,kp):
         if t < 4:
-            Kp = 400000 + t * 400000 
+            Kp = kp + t * 300000 
             Kd = 200
         else:
-            Kp = 2000000
+            Kp = kp
             Kd = 200
         
         

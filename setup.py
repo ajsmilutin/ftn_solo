@@ -26,7 +26,7 @@ setup(
     entry_points={
         'console_scripts': [
             'simulation_node = ftn_solo.visualize:simulate',
-            'connector_node = ftn_solo.connector:main'
+            'connector_node = ftn_solo.connector:main',
         ],
     },
 )

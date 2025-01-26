@@ -9,13 +9,16 @@ from rclpy.node import Node
 from sensor_msgs.msg import JointState
 import numpy as np
 from rosgraph_msgs.msg import Clock
+from geometry_msgs.msg import Twist
 import time
 import math
 import yaml
 from robot_properties_solo import Resources
 from ftn_solo.tasks.robot_squat import RobotMove
+from ftn_solo.tasks.task_joint_spline import TaskJointSpline
 from tf2_ros import TransformBroadcaster
 from geometry_msgs.msg import TransformStamped
+import threading
 
 
 class Connector():
@@ -164,8 +167,10 @@ class PybulletConnector(SimulationConnector):
             force = np.zeros(6)
             force[:3] = (
                 normal_force * np.array(contact_normal)
-                + lateral_friction_force_1 * np.array(lateral_friction_direction_1)
-                + lateral_friction_force_2 * np.array(lateral_friction_direction_2)
+                + lateral_friction_force_1 *
+                np.array(lateral_friction_direction_1)
+                + lateral_friction_force_2 *
+                np.array(lateral_friction_direction_2)
             )
             contact_forces.append(force)
 
@@ -298,6 +303,10 @@ class ConnectorNode(Node):
             'hardware').get_parameter_value().string_value
         self.time_publisher = None
 
+        self.twist_subscriber = self.create_subscription(
+            Twist, "/cmd_vel", self.cmd_vel_callback, 10
+        )
+
         if hardware.lower() != "robot":
             self.time_publisher = self.create_publisher(Clock, "/clock", 10)
         self.clock = Clock()
@@ -349,7 +358,18 @@ class ConnectorNode(Node):
                 'Unknown task selected!!! Switching to joint_spline task!')
             self.task = TaskJointSpline(
                 robot_version, "/home/ajsmilutin/solo/solo_ws/src/ftn_solo/config/controllers/eurobot_demo.yaml")
+            
         self.task.dt = self.connector.dt
+
+        self.stop_thread = False 
+        self.run_thread = threading.Thread(target=self.run)
+        self.run_thread.start()
+
+    
+    def cmd_vel_callback(self, msg):
+        self.task.define_movement(msg)
+        
+
 
     def run(self):
         c = 0
@@ -358,7 +378,7 @@ class ConnectorNode(Node):
         transform = TransformStamped()
         position, velocity = self.connector.get_data()
         self.task.init_pose(position, velocity)
-        while self.connector.is_running():
+        while rclpy.ok() and self.connector.is_running() and not self.stop_thread:
             position, velocity = self.connector.get_data()
             sensors = self.connector.get_sensor_readings()
             if self.time_publisher:
@@ -395,12 +415,22 @@ class ConnectorNode(Node):
                     self.tf_broadcaster.sendTransform(transform)
             self.connector.step()
 
+    def destroy_node(self):
+        self.stop_thread = True  # Signal the loop thread to stop
+        self.run_thread.join()  # Wait for the thread to finish
+        super().destroy_node()
+
 
 def main(args=None):
     rclpy.init(args=args)
     node = ConnectorNode()
-    node.run()
-    rclpy.shutdown()
+    try:
+        rclpy.spin(node)  # Handle callbacks in the main thread
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
 
 
 if __name__ == '__main__':
