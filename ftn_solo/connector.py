@@ -248,7 +248,7 @@ class MujocoConnector(SimulationConnector):
         self.touch_sensors = ["fl", "fr", "hl", "hr"]
         if self.use_gui:
             self.viewer = mujoco.viewer.launch_passive(
-                self.model, self.data, show_left_ui=False, show_right_ui=False, key_callback=self.key_callback)
+                self.model, self.data, show_left_ui=True, show_right_ui=False, key_callback=self.key_callback)
 
     def key_callback(self, keycode):
         if chr(keycode) == ' ':
