@@ -119,7 +119,7 @@ class RobotMove(TaskBase):
 
     def init_pose(self, q, dq):
 
-        v1 = np.array([0.15, 0.20, -0.25])
+        v1 = np.array([0.15, 0.20, -0.253])
         v2 = np.array([0.15, -0.20, -0.25])
         v3 = np.array([-0.15, 0.20, -0.25])
         v4 = np.array([-0.15, -0.20, -0.25])
