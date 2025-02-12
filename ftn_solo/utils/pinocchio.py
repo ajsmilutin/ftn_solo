@@ -59,7 +59,7 @@ class PinocchioWrapper(object):
 
     def framesForwardKinematics(self, q, dq, joint_ids, goal_positions):
         pin.framesForwardKinematics(self.model, self.data, q)
-        pin.forwardKinematics(self.model, self.data, q, dq)
+        pin.forwardKinematics(self.model, self.data, q, dq,0*dq)
         
         self.nu.clear()
         for x,joint_id in enumerate(joint_ids):
@@ -119,7 +119,7 @@ class PinocchioWrapper(object):
         self.J = pin.getFrameJacobian(self.model,self.data,frame_id,self.fr)
         J_dot = pin.getFrameJacobianTimeVariation(self.model,self.data,frame_id,pin.ReferenceFrame.LOCAL_WORLD_ALIGNED)
         ades = pin.getFrameAcceleration(self.model, self.data,frame_id,self.fr)
-        # self.logger.info("Ades: {}".format(ades))
+        self.logger.info("Ades: {}".format(ades))
         
         self.J[:, :6] = 0
       
