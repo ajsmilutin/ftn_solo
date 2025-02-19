@@ -26,40 +26,50 @@ class RneAlgorithm(PinocchioWrapper):
         self.q_base = np.array([0,0,0,0,0,0,1])
         self.dq_base = np.array([0,0,0,0,0,0])
         self.tau_con = np.zeros(12)
-       
 
-    def rnea(self, steps, acc, qcurr, dqcurr,qbase,t,kp):
+    def calculate_kinematics(self, qcurr, dqcurr):
 
-        # qbase = np.array([qbase[1],qbase[2],qbase[3],qbase[0]])
-        # self.q = np.concatenate((np.concatenate((self.q_base,qbase)), qcurr))
         self.q = np.concatenate((self.q_base,qcurr))
         self.dq_curr = np.concatenate((self.dq_base,dqcurr))
         self.ndq.fill(0)
         self.J_real.fill(0)
         self.J_dot.fill(0)
-        new = self.framesForwardKinematics(self.q, self.dq_curr, self.end_eff_ids, steps)
+        self.framesForwardKinematics(self.q, self.dq_curr)
         self.computeFrameJacobian(self.q,self.dq_curr)
         self.computeNonLinear(self.q, self.dq_curr)
 
-        for x,end_eff_id in enumerate(self.end_eff_ids):
-            J_real,J_dot = self.get_frame_jacobian(end_eff_id)
-            self.dq = np.dot(np.linalg.pinv(J_real), new[x][:3])
-            # dddq = np.dot(J_real,acc[x])
-            # self.logger.info("ddq: {}".format(dddq))
-            self.ndq += self.dq
-            self.J_real += J_real
-            self.J_dot += J_dot
-        
-        # self.logger.info(format(np.linalg.matrix_rank(J_real)))
-        q = self.pinIntegrate(self.q, self.ndq)
+
+    def calculate_joint_velocities(self, steps,leg, acc, qcurr):
+        end_eff_id = self.pin_robot.model.getFrameId(leg + "_ANKLE")
+        # qbase = np.array([qbase[1],qbase[2],qbase[3],qbase[0]])
+        # self.q = np.concatenate((np.concatenate((self.q_base,qbase)), qcurr))
       
-        q_joints = q[7:19]
+        # for x,end_eff_id in enumerate(self.end_eff_ids):
+        J_real,J_dot = self.get_frame_jacobian(end_eff_id)
+        new = self.calculate_velocity(end_eff_id, steps)
+        self.dq = np.dot(np.linalg.pinv(J_real), new[:3])
+        # dddq = np.dot(J_real,acc[x])
+        # self.logger.info("ddq: {}".format(dddq))
+        self.ndq += self.dq
+        self.J_real += J_real
+        self.J_dot += J_dot
+        
+        return self.ndq
+        
+
+        
+      
+
        
-        ddq = self.pd_controller(q_joints, self.dq[6:], qcurr, dqcurr,t,kp)
 
-        
+    def calculate_acceleration(self,ndq): 
+        q = self.pinIntegrate(self.q, ndq)
       
+        q_joints = q[7:]
+       
+        return self.pd_controller(q_joints, self.ndq[6:], self.q[7:], self.dq_curr[6:])
 
+    def get_tourqe(self,ddq):
         self.tau = self.compute_recrusive_newtone_euler(self.ndq, ddq,self.Fv,self.B,self.J_real[:3,6:],self.J_dot[:3,6:])
-        return self.tau 
+        return self.tau
  

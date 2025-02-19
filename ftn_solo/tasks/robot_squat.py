@@ -16,7 +16,7 @@ class RobotMove(TaskBase):
             num_joints, self.config["joint_controller"], robot_version, logger, dt)
 
         
-        self.splines = {leg: {"arc": {}, "line": {}} for leg in ["fl", "fr", "hl", "hr"]}
+        self.splines = {leg: {"arc": {}, "line": {}} for leg in ["FL", "FR", "HL", "HR"]}
      
 
         self.steps = []
@@ -86,28 +86,28 @@ class RobotMove(TaskBase):
         for leg in self.splines.keys():
 
             if self.move_x:
-                if leg == "fl" or leg == "fr":
+                if leg == "FL" or leg == "FR":
                     x_arc = x_f
                     x_line = x_b
                 else:
                     x_arc = -x_b
                     x_line = -x_f
             elif self.move_y:
-                if leg == "fr" or leg == "hr":
+                if leg == "FR" or leg == "HR":
                     x_arc = -x_f
                     x_line = -x_b
                 else:
                     x_arc = x_b
                     x_line = x_f
             else:
-                if leg == "hr" or leg == "fl":
+                if leg == "HR" or leg == "FL":
                     x_arc = x_f
                     x_line = x_b
                 else:
                     x_arc = x_b
                     x_line = x_f
 
-                if leg == "fr" or leg == "hr":
+                if leg == "FR" or leg == "HR":
                     x_arc = -x_arc
                     x_line = -x_line
 
@@ -145,7 +145,7 @@ class RobotMove(TaskBase):
             s_ddot = (60 * (t_mod / T) - 180 * (t_mod / T) **
                       2 + 120 * (t_mod / T)**3) / (T**2)
 
-            motion = "arc" if leg in ["fr", "hl"] else "line"
+            motion = "arc" if leg in ["FR", "HL"] else "line"
 
         else:
             t_d = t_mod - T
@@ -156,7 +156,7 @@ class RobotMove(TaskBase):
             s_ddot = (60 * (t_d / T2) - 180 * (t_d / T2) **
                       2 + 120 * (t_d / T2)**3) / (T2**2)
 
-            motion = "line" if leg in ["fr", "hl"] else "arc"
+            motion = "line" if leg in ["FR", "HL"] else "arc"
 
         x_pos = self.splines[leg][motion]["x"](s_t)
         z_pos = self.splines[leg][motion]["z"](s_t)
@@ -167,31 +167,35 @@ class RobotMove(TaskBase):
             s_t, 2) * (s_dot**2) + self.splines[leg][motion]["z"](s_t, 1) * s_ddot
 
         if self.move_x:
-            return np.array([x_pos, 0.1469 if "fl" in leg or "hl" in leg else -0.1469, z_pos]), \
+            return np.array([x_pos, 0.1469 if "FL" in leg or "HL" in leg else -0.1469, z_pos]), \
                 np.array([x_acc, 0, z_acc])
         else:
-            return np.array([0.196 if "fl" in leg or "fr" in leg else -0.196, x_pos, z_pos]), \
+            return np.array([0.196 if "FL" in leg or "FR" in leg else -0.196, x_pos, z_pos]), \
                 np.array([x_acc, 0, z_acc])
 
     def compute_control(self, t, position, velocity, sensors):
 
         leg_pos = []
         leg_acc = []
-
+        self.joint_controller.calculate_kinematics(position, velocity)
         if not self.start:
-            tourques = self.joint_controller.rnea(
-                self.steps, leg_acc, position, velocity, sensors['attitude'], t, 0.7e6)
+            for x,leg in enumerate(["FL", "FR", "HL", "HR"]):
+                dq = self.joint_controller.calculate_joint_velocities(
+                    self.steps[x], leg,leg_acc, position)
+                
+                ddq= self.joint_controller.calculate_acceleration(dq)
+                tourques = self.joint_controller.get_tourqe(ddq)
             return tourques
 
         else:
 
-            for leg in ["fl", "fr", "hl", "hr"]:
+            for leg in ["FL", "FR", "HL", "HR"]:
 
-                pos, acc = self.get_trajectory(t, leg, 0.06, 0.06)
-                leg_pos.append(self.pin_robot.moveSE3(self.R_y, pos))
-                leg_acc.append(acc)
-
-            tourques = self.joint_controller.rnea(
-                leg_pos, leg_acc, position, velocity, sensors['attitude'], t, 2e6)
+                pos, acc = self.get_trajectory(t, leg, 1, 1)
+                ref_pos = self.joint_controller.moveSE3(self.R_y, pos)
+                dq = self.joint_controller.calculate_joint_velocities(
+                    ref_pos, leg, acc, position)
+                ddq = self.joint_controller.calculate_acceleration(dq)
+                tourques = self.joint_controller.get_tourqe(ddq)
 
             return tourques

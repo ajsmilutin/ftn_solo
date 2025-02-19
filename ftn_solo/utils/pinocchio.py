@@ -57,20 +57,24 @@ class PinocchioWrapper(object):
 
     
 
-    def framesForwardKinematics(self, q, dq, joint_ids, goal_positions):
+    def framesForwardKinematics(self, q, dq):
         pin.framesForwardKinematics(self.model, self.data, q)
         pin.forwardKinematics(self.model, self.data, q, dq,0*dq)
         
-        self.nu.clear()
-        for x,joint_id in enumerate(joint_ids):
-            iMl = self.data.oMf[joint_id]
-            iMd = iMl.actInv(goal_positions[x])
-            err = iMd.translation - iMl.translation
+        # self.nu.clear()
+        # for x,joint_id in enumerate(joint_ids):
+        #     iMl = self.data.oMf[joint_id]
+        #     iMd = iMl.actInv(goal_positions[x])
+        #     err = iMd.translation - iMl.translation
             
-            self.nu.append(pin.log(iMd).vector)
+        #     self.nu.append(pin.log(iMd).vector)
             
-        return self.nu
-
+        # return self.nu
+    
+    def calculate_velocity(self,joint_id, goal_positions):
+        iMl = self.data.oMf[joint_id]
+        iMd = iMl.actInv(goal_positions)        
+        return pin.log(iMd).vector
     
     def compute_state(self,q, joint_ids, goal_positions, base_frame):
         self.nu.clear()
@@ -159,15 +163,16 @@ class PinocchioWrapper(object):
         return tau_constraint
 
 
-    def pd_controller(self, ref_pos, ref_vel, position, velocity,t,kp):
-        if t < 4:
-            Kp = kp + t * 300000 
-            Kd = 200
-        else:
-            Kp = kp
-            Kd = 200
+    def pd_controller(self, ref_pos, ref_vel, position, velocity):
+        # if t < 4:
+            # Kp = kp + t * 300000 
+            # Kd = 200
+        # else:
+            # Kp = kp
+            # Kd = 200
         
-        
+        Kp=100000
+        Kd=200
        
         pos_diff = ref_pos - position
         vel_diff = ref_vel - velocity
@@ -195,28 +200,28 @@ class PinocchioWrapper(object):
 
 
         # Augmented system 
-        h=np.dot(self.C[6:, 6:], dq[6:]) +  self.G[6:]
-        zero_block = np.zeros((J.shape[0], J.shape[0]))
-        A_aug = np.block([
-            [self.M[6:, 6:], J.T],
-            [J, zero_block]
-            ])
+        # h=np.dot(self.C[6:, 6:], dq[6:]) +  self.G[6:]
+        # zero_block = np.zeros((J.shape[0], J.shape[0]))
+        # A_aug = np.block([
+        #     [self.M[6:, 6:], J.T],
+        #     [J, zero_block]
+        #     ])
         
-        dynamics_rhs = np.dot(self.M[6:, 6:], ddq) + h
-        constraint_rhs = -np.dot(J_dot, dq[6:])
+        # dynamics_rhs = np.dot(self.M[6:, 6:], ddq) + h
+        # constraint_rhs = -np.dot(J_dot, dq[6:])
 
-        b_aug = np.concatenate([dynamics_rhs, constraint_rhs])
+        # b_aug = np.concatenate([dynamics_rhs, constraint_rhs])
 
-        solution = np.linalg.lstsq(A_aug, b_aug, rcond=1e-6)[0]
-        ddq_test = solution[:12]         # Joint accelerations
-        lambda_vector = solution[12:]  # Constraint forces
+        # solution = np.linalg.lstsq(A_aug, b_aug, rcond=1e-6)[0]
+        # ddq_test = solution[:12]         # Joint accelerations
+        # lambda_vector = solution[12:]  # Constraint forces
 
-        tau = np.dot(self.M[6:, 6:], ddq_test) + h + np.dot(J.T, lambda_vector) + np.dot(Fv,dq[6:]) + B   # Add constraint contribution
+        # tau = np.dot(self.M[6:, 6:], ddq_test) + h + np.dot(J.T, lambda_vector) + np.dot(Fv,dq[6:]) + B   # Add constraint contribution
 
 
 
 # 
-        # tau = np.dot(self.M[6:, 6:], ddq) + np.dot(self.C[6:, 6:], dq[6:]) + np.dot(Fv,dq[6:]) + B + self.G[6:]
+        tau = np.dot(self.M[6:, 6:], ddq) + np.dot(self.C[6:, 6:], dq[6:]) + np.dot(Fv,dq[6:]) + B + self.G[6:]
 
         # self.logger.info("tau: {}".format(tau))
         # self.logger.info("tau_test: {}".format(tau_test))
