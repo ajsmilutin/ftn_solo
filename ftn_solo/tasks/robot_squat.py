@@ -15,9 +15,8 @@ class RobotMove(TaskBase):
         self.joint_controller = RneAlgorithm(
             num_joints, self.config["joint_controller"], robot_version, logger, dt)
 
-        
-        self.splines = {leg: {"arc": {}, "line": {}} for leg in ["FL", "FR", "HL", "HR"]}
-     
+        self.splines = {leg: {"arc": {}, "line": {}}
+                        for leg in ["FL", "FR", "HL", "HR"]}
 
         self.steps = []
         self.step = 0
@@ -37,33 +36,27 @@ class RobotMove(TaskBase):
 
     def define_movement(self, msg):
         if msg != self.old_msg:
-            
-            if msg !=0:
-                self.start = True
-
-            if msg.linear.x !=0:
+            self.start = True
+            if msg.linear.x != 0:
                 self.backwards = msg.linear.x < 0
                 self.move_x = True
                 self.move_y = False
                 self.start_point = 0.196
-                off = np.clip(abs(msg.linear.x) , 0.02, 0.08)
-            elif msg.linear.y !=0:
+                off = np.clip(abs(msg.linear.x), 0.0, 0.08)
+            elif msg.linear.y != 0:
                 self.backwards = msg.linear.y < 0
                 self.move_y = True
                 self.move_x = False
                 self.start_point = 0.1469
-                off = np.clip(abs(msg.linear.y) , 0.02, 0.04)
-            elif msg.angular.z !=0:
+                off = np.clip(abs(msg.linear.y), 0.0, 0.04)
+            elif msg.angular.z != 0:
                 self.backwards = msg.angular.z < 0
                 self.move_x = False
                 self.move_y = False
-                self.start_point = 0.1469     
-                off = np.clip(abs(msg.angular.z) , 0.02, 0.08)
-            else:               
-                self.start=False
-                off = 0
-
-
+                self.start_point = 0.1469
+                off = np.clip(abs(msg.angular.z), 0.00, 0.08)
+            else:
+                off = 0.0
 
             self.define_splines(off)
             self.old_msg = msg
@@ -74,14 +67,13 @@ class RobotMove(TaskBase):
 
         t_arc_points = np.array([0, 0.5, 1])
         front = np.array(
-            [ self.start_point-off,  self.start_point,  self.start_point+off])
+            [self.start_point-off,  self.start_point,  self.start_point+off])
         zarc = np.array([-0.25, -0.20, -0.25])
         back = np.array(
-            [ self.start_point+off,  self.start_point,  self.start_point-off])
+            [self.start_point+off,  self.start_point,  self.start_point-off])
         zline = np.array([-0.25, -0.25, -0.25])
 
         x_f, x_b = (back, front) if self.backwards else (front, back)
-
 
         for leg in self.splines.keys():
 
@@ -111,7 +103,6 @@ class RobotMove(TaskBase):
                     x_arc = -x_arc
                     x_line = -x_line
 
-               
             self.splines[leg]["arc"]["x"] = CubicSpline(t_arc_points, x_arc)
             self.splines[leg]["arc"]["z"] = CubicSpline(t_arc_points, zarc)
             self.splines[leg]["line"]["x"] = CubicSpline(t_arc_points, x_line)
@@ -121,8 +112,8 @@ class RobotMove(TaskBase):
 
         v1 = np.array([0.15, 0.20, -0.25])
         v2 = np.array([0.15, -0.20, -0.25])
-        v3 = np.array([-0.15, 0.20, -0.25])
-        v4 = np.array([-0.15, -0.20, -0.25])
+        v3 = np.array([-0.17, 0.20, -0.25])
+        v4 = np.array([-0.17, -0.20, -0.25])
         odmes1 = self.pin_robot.moveSE3(self.R_y, v1)
         odmes2 = self.pin_robot.moveSE3(self.R_y, v2)
         odmes3 = self.pin_robot.moveSE3(self.R_y, v3)
@@ -177,13 +168,14 @@ class RobotMove(TaskBase):
 
         leg_pos = []
         leg_acc = []
+
         self.joint_controller.calculate_kinematics(position, velocity)
         if not self.start:
-            for x,leg in enumerate(["FL", "FR", "HL", "HR"]):
+            for x, leg in enumerate(["FL", "FR", "HL", "HR"]):
                 dq = self.joint_controller.calculate_joint_velocities(
-                    self.steps[x], leg,leg_acc, position)
-                
-                ddq= self.joint_controller.calculate_acceleration(dq)
+                    self.steps[x], leg, leg_acc, position)
+
+                ddq = self.joint_controller.calculate_acceleration(dq)
                 tourques = self.joint_controller.get_tourqe(ddq)
             return tourques
 
@@ -191,7 +183,7 @@ class RobotMove(TaskBase):
 
             for leg in ["FL", "FR", "HL", "HR"]:
 
-                pos, acc = self.get_trajectory(t, leg, 1, 1)
+                pos, acc = self.get_trajectory(t, leg, 0.05, 0.05)
                 ref_pos = self.joint_controller.moveSE3(self.R_y, pos)
                 dq = self.joint_controller.calculate_joint_velocities(
                     ref_pos, leg, acc, position)

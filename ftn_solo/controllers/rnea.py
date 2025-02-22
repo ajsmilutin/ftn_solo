@@ -43,7 +43,7 @@ class RneAlgorithm(PinocchioWrapper):
         end_eff_id = self.pin_robot.model.getFrameId(leg + "_ANKLE")
         # qbase = np.array([qbase[1],qbase[2],qbase[3],qbase[0]])
         # self.q = np.concatenate((np.concatenate((self.q_base,qbase)), qcurr))
-      
+        
         # for x,end_eff_id in enumerate(self.end_eff_ids):
         J_real,J_dot = self.get_frame_jacobian(end_eff_id)
         new = self.calculate_velocity(end_eff_id, steps)
