@@ -73,36 +73,11 @@ class PinocchioWrapper(object):
     
     def calculate_velocity(self,joint_id, goal_positions):
         iMl = self.data.oMf[joint_id]
-        iMd = iMl.actInv(goal_positions)        
-        return pin.log(iMd).vector
+        iMd = iMl.actInv(goal_positions) 
+        vel_frame = pin.getFrameVelocity(self.model, self.data, joint_id, self.fr)
+       
+        return vel_frame, iMd.translation
     
-    def compute_state(self,q, joint_ids, goal_positions, base_frame):
-        self.nu.clear()
-        self.J_list.clear()
-        self.J.fill(0)
-
-        pin.framesForwardKinematics(self.model, self.data, q)
-        self.computeFrameJacobian(q)
-      
-
-        for x,joint in enumerate(joint_ids):
-            iBd = self.data.oMf[base_frame]
-            iMl = self.data.oMf[joint]
-            iMr = iBd.actInv(iMl)
-            iMd = iMl.actInv(goal_positions[x])
-            
-            if x == 0:
-                self.calculate_delta_error(
-                    goal_positions[x].translation, iMr.translation)
-            
-            nu = (pin.log(iMd).vector).reshape(6, 1)
-
-            self.nu.append(nu)
-           
-            self.J=pin.getFrameJacobian(self.model,self.data,joint,self.fr)
-            self.J_list.append(self.J)
-        
-        return self.nu,self.J_list
 
 
     def computeFrameJacobian(self, q,dq):
@@ -128,7 +103,7 @@ class PinocchioWrapper(object):
         self.J[:, :6] = 0
       
      
-        return  self.J[:3,:], J_dot[:3,:]
+        return  self.J[:3,:], J_dot[:3,:],ades
     
 
     def get_acceleration(self, q, dq, tau_ref):
@@ -160,28 +135,7 @@ class PinocchioWrapper(object):
         lamba = solve[self.M[6:,6:].shape[0]:]
         
         tau_constraint = np.dot(J.T, lamba)
-        return tau_constraint
-
-
-    def pd_controller(self, ref_pos, ref_vel, position, velocity):
-        # if t < 4:
-            # Kp = kp + t * 300000 
-            # Kd = 200
-        # else:
-            # Kp = kp
-            # Kd = 200
-        
-        Kp=3000000
-        Kd=200
-       
-        pos_diff = ref_pos - position
-        vel_diff = ref_vel - velocity
-        # self.logger.info("pos_diff: {}".format(pos_diff))
-
-        control =  Kp * (pos_diff) + Kd * (vel_diff)
-        # return np.concatenate((np.zeros(6),control))
-        return control
-    
+        return tau_constraint    
    
 
     def compute_recrusive_newtone_euler(self, dq, ddq,Fv,B,J,J_dot):
@@ -200,30 +154,30 @@ class PinocchioWrapper(object):
 
 
         # Augmented system 
-        h=np.dot(self.C[6:, 6:], dq[6:]) +  self.G[6:]
-        zero_block = np.zeros((J.shape[0], J.shape[0]))
-        A_aug = np.block([
-            [self.M[6:, 6:], J.T],
-            [J, zero_block]
-            ])
+        # h=np.dot(self.C[6:, 6:], dq[6:]) +  self.G[6:]
+        # zero_block = np.zeros((J.shape[0], J.shape[0]))
+        # A_aug = np.block([
+        #     [self.M[6:, 6:], J.T],
+        #     [J, zero_block]
+        #     ])
         
-        dynamics_rhs = np.dot(self.M[6:, 6:], ddq) + h
-        constraint_rhs = -np.dot(J_dot, dq[6:])
+        # dynamics_rhs = np.dot(self.M[6:, 6:], ddq) + h
+        # constraint_rhs = -np.dot(J_dot, dq[6:])
 
-        b_aug = np.concatenate([dynamics_rhs, constraint_rhs])
+        # b_aug = np.concatenate([dynamics_rhs, constraint_rhs])
 
-        solution = np.linalg.lstsq(A_aug, b_aug, rcond=1e-6)[0]
-        ddq_test = solution[:12]         # Joint accelerations
-        lambda_vector = solution[12:]  # Constraint forces
+        # solution = np.linalg.lstsq(A_aug, b_aug, rcond=1e-6)[0]
+        # ddq_test = solution[:12]         # Joint accelerations
+        # lambda_vector = solution[12:]  # Constraint forces
 
-        tau = np.dot(self.M[6:, 6:], ddq_test) + h + np.dot(J.T, lambda_vector) + np.dot(Fv,dq[6:]) + B   # Add constraint contribution
+        # tau = np.dot(self.M[6:, 6:], ddq_test) + h + np.dot(J.T, lambda_vector) + np.dot(Fv,dq[6:]) + B   # Add constraint contribution
 
 
 
  
-        # tau = np.dot(self.M[6:, 6:], ddq) + np.dot(self.C[6:, 6:], dq[6:]) + np.dot(Fv,dq[6:]) + B + self.G[6:]
+        tau = np.dot(self.M[6:, 6:], ddq) + np.dot(self.C[6:, 6:], dq[6:]) + np.dot(Fv,dq[6:]) + B + self.G[6:]
 
-        # self.logger.info("tau: {}".format(tau))
+        self.logger.info("tau: {}".format(tau))
         # self.logger.info("tau_test: {}".format(tau_test))
 
         return np.clip(tau, -self.max_tau, self.max_tau)

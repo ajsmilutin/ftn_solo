@@ -27,13 +27,16 @@ class RobotMove(TaskBase):
         self.move_x = False
         self.move_y = False
 
+        self.ndq = np.zeros(18)
+        self.nddq = np.zeros(18)
+
         self.logger = logger
         self.R_y = np.eye(3)
         self.start_point = 0.1469
         self.off = 0.05
         self.old_msg = Twist()
         self.define_splines(self.off)
-
+        
     def define_movement(self, msg):
         if msg != self.old_msg:
             self.start = True
@@ -152,6 +155,9 @@ class RobotMove(TaskBase):
         x_pos = self.splines[leg][motion]["x"](s_t)
         z_pos = self.splines[leg][motion]["z"](s_t)
 
+        x_vel = self.splines[leg][motion]["x"](s_t, 1) * s_dot
+        z_vel = self.splines[leg][motion]["z"](s_t, 1) * s_dot
+
         x_acc = self.splines[leg][motion]["x"](
             s_t, 2) * (s_dot**2) + self.splines[leg][motion]["x"](s_t, 1) * s_ddot
         z_acc = self.splines[leg][motion]["z"](
@@ -159,35 +165,35 @@ class RobotMove(TaskBase):
 
         if self.move_x:
             return np.array([x_pos, 0.1469 if "FL" in leg or "HL" in leg else -0.1469, z_pos]), \
-                np.array([x_acc, 0, z_acc])
+                np.array([x_vel, 0, z_vel]), np.array([x_acc, 0, z_acc])
         else:
             return np.array([0.196 if "FL" in leg or "FR" in leg else -0.196, x_pos, z_pos]), \
-                np.array([x_acc, 0, z_acc])
+                np.array([0, x_vel, z_vel]), np.array([x_acc, 0, z_acc])
 
     def compute_control(self, t, position, velocity, sensors):
-
-        leg_pos = []
-        leg_acc = []
-
+        self.ndq.fill(0)
+        self.nddq.fill(0)
         self.joint_controller.calculate_kinematics(position, velocity)
         if not self.start:
             for x, leg in enumerate(["FL", "FR", "HL", "HR"]):
-                dq = self.joint_controller.calculate_joint_velocities(
-                    self.steps[x], leg, leg_acc, position)
+                dq,ddq = self.joint_controller.calculate_acceleration(leg,self.steps[x],np.zeros(3),np.zeros(3))
+                self.ndq = +dq
+                self.nddq = +ddq
 
-                ddq = self.joint_controller.calculate_acceleration(dq)
-                tourques = self.joint_controller.get_tourqe(ddq)
+            tourques = self.joint_controller.get_tourqe(self.ndq,self.nddq)
             return tourques
 
         else:
 
             for leg in ["FL", "FR", "HL", "HR"]:
-
-                pos, acc = self.get_trajectory(t, leg, 0.05, 0.05)
+                pos, vel,acc = self.get_trajectory(t, leg, 0.05,0.05)
                 ref_pos = self.joint_controller.moveSE3(self.R_y, pos)
-                dq = self.joint_controller.calculate_joint_velocities(
-                    ref_pos, leg, acc, position)
-                ddq = self.joint_controller.calculate_acceleration(dq)
-                tourques = self.joint_controller.get_tourqe(ddq)
+                dq,ddq = self.joint_controller.calculate_acceleration(leg,ref_pos,vel,acc)
+                self.ndq += dq
+                self.nddq += ddq
+                self.logger.info("Current caluclated ddq: {}".format(self.nddq))
+
+            self.logger.info("FIinal ddq: {}".format(self.nddq))
+            tourques = self.joint_controller.get_tourqe(self.ndq,self.nddq)
 
             return tourques
