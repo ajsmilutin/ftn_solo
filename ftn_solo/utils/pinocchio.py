@@ -32,7 +32,7 @@ class PinocchioWrapper(object):
 
         self.base_link = self.model.getFrameId("base_link")
 
-        self.fr = pin.ReferenceFrame.LOCAL
+        self.fr = pin.ReferenceFrame.LOCAL_WORLD_ALIGNED
 
         # Parameters for IK
         self.DT = 0.01
@@ -96,7 +96,7 @@ class PinocchioWrapper(object):
         self.J.fill(0)
         J_dot=np.zeros((6, 18))
         self.J = pin.getFrameJacobian(self.model,self.data,frame_id,self.fr)
-        J_dot = pin.getFrameJacobianTimeVariation(self.model,self.data,frame_id,pin.ReferenceFrame.LOCAL_WORLD_ALIGNED)
+        J_dot = pin.getFrameJacobianTimeVariation(self.model,self.data,frame_id,self.fr)
         ades = pin.getFrameAcceleration(self.model, self.data,frame_id,self.fr)
         # self.logger.info("Ades: {}".format(ades))
         

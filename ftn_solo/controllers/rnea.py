@@ -51,7 +51,7 @@ class RneAlgorithm(PinocchioWrapper):
         
         dq = np.dot(np.linalg.pinv(J_real),vel_diff)
 
-        ref_acc = self.Kp * frame_pos + self.Kd * vel_diff
+        ref_acc =acc + self.Kp * frame_pos + self.Kd * vel_diff
         frame_acc = ref_acc - ades.linear   
         ddq = np.dot(np.linalg.pinv(J_real), frame_acc)
 

@@ -168,30 +168,31 @@ class RobotMove(TaskBase):
                 np.array([x_vel, 0, z_vel]), np.array([x_acc, 0, z_acc])
         else:
             return np.array([0.196 if "FL" in leg or "FR" in leg else -0.196, x_pos, z_pos]), \
-                np.array([0, x_vel, z_vel]), np.array([x_acc, 0, z_acc])
+                np.array([0, x_vel, z_vel]), np.array([0, x_acc, z_acc])
 
     def compute_control(self, t, position, velocity, sensors):
         self.ndq.fill(0)
         self.nddq.fill(0)
+        self.logger.info("Current ndq: {}".format(self.nddq))
         self.joint_controller.calculate_kinematics(position, velocity)
         if not self.start:
-            # for x, leg in enumerate(["FL", "FR", "HL", "HR"]):
-            dq,ddq = self.joint_controller.calculate_acceleration("FL",self.steps[1],np.zeros(3),np.zeros(3))
-            self.ndq = +dq
-            self.nddq = +ddq
+            for x, leg in enumerate(["FL", "FR", "HL", "HR"]):
+                dq,ddq = self.joint_controller.calculate_acceleration(leg,self.steps[x],np.zeros(3),np.zeros(3))
+                self.ndq += dq
+                self.nddq += ddq
 
             tourques = self.joint_controller.get_tourqe(self.ndq,self.nddq)
             return tourques
 
         else:
 
-            # for leg in ["FL", "FR", "HL", "HR"]:
-            pos, vel,acc = self.get_trajectory(t,"FL", 0.05,0.05)
-            ref_pos = self.joint_controller.moveSE3(self.R_y, pos)
-            dq,ddq = self.joint_controller.calculate_acceleration("FL",ref_pos,vel,acc)
-            self.ndq += dq
-            self.nddq += ddq
-            self.logger.info("Current caluclated ddq: {}".format(self.nddq))
+            for leg in ["FL", "FR"]:
+                pos, vel,acc = self.get_trajectory(t,leg, 1,1)
+                ref_pos = self.joint_controller.moveSE3(self.R_y, pos)
+                dq,ddq = self.joint_controller.calculate_acceleration(leg,ref_pos,vel,acc)
+                self.ndq += dq
+                self.nddq += ddq
+                self.logger.info("Current caluclated ddq: {}".format(self.nddq))
 
             self.logger.info("FIinal ddq: {}".format(self.nddq))
             tourques = self.joint_controller.get_tourqe(self.ndq,self.nddq)
