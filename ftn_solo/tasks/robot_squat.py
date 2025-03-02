@@ -173,7 +173,7 @@ class RobotMove(TaskBase):
     def compute_control(self, t, position, velocity, sensors):
         self.ndq.fill(0)
         self.nddq.fill(0)
-        self.logger.info("Current ndq: {}".format(self.nddq))
+        # self.logger.info("Current ndq: {}".format(self.nddq))
         self.joint_controller.calculate_kinematics(position, velocity)
         if not self.start:
             for x, leg in enumerate(["FL", "FR", "HL", "HR"]):
@@ -186,15 +186,15 @@ class RobotMove(TaskBase):
 
         else:
 
-            for leg in ["FL", "FR"]:
-                pos, vel,acc = self.get_trajectory(t,leg, 1,1)
+            for leg in ["FL", "FR", "HL", "HR"]:
+                pos, vel,acc = self.get_trajectory(t,leg, 0.06,0.06)
                 ref_pos = self.joint_controller.moveSE3(self.R_y, pos)
                 dq,ddq = self.joint_controller.calculate_acceleration(leg,ref_pos,vel,acc)
                 self.ndq += dq
                 self.nddq += ddq
-                self.logger.info("Current caluclated ddq: {}".format(self.nddq))
+                # self.logger.info("Current caluclated ddq: {}".format(self.nddq))
 
-            self.logger.info("FIinal ddq: {}".format(self.nddq))
+            # self.logger.info("FIinal ddq: {}".format(self.nddq))
             tourques = self.joint_controller.get_tourqe(self.ndq,self.nddq)
 
             return tourques

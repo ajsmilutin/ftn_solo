@@ -75,8 +75,8 @@ class PinocchioWrapper(object):
         iMl = self.data.oMf[joint_id]
         iMd = iMl.actInv(goal_positions) 
         vel_frame = pin.getFrameVelocity(self.model, self.data, joint_id, self.fr)
-       
-        return vel_frame, iMd.translation
+        err = pin.log(iMd).vector
+        return vel_frame, iMd.translation, err
     
 
 
@@ -177,7 +177,7 @@ class PinocchioWrapper(object):
  
         tau = np.dot(self.M[6:, 6:], ddq) + np.dot(self.C[6:, 6:], dq[6:]) + np.dot(Fv,dq[6:]) + B + self.G[6:]
 
-        self.logger.info("tau: {}".format(tau))
+        # self.logger.info("tau: {}".format(tau))
         # self.logger.info("tau_test: {}".format(tau_test))
 
         return np.clip(tau, -self.max_tau, self.max_tau)

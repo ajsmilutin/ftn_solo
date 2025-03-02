@@ -26,9 +26,8 @@ class RneAlgorithm(PinocchioWrapper):
         self.q_base = np.array([0,0,0,0,0,0,1])
         self.dq_base = np.array([0,0,0,0,0,0])
         self.tau_con = np.zeros(12)
-        self.Kp = 1000
-        self.Kd = 200
-
+        self.Kp = 12000
+        self.Kd = 500
     def calculate_kinematics(self, qcurr, dqcurr):
         # qbase = np.array([qbase[1],qbase[2],qbase[3],qbase[0]])
         # self.q = np.concatenate((np.concatenate((self.q_base,qbase)), qcurr))
@@ -46,10 +45,10 @@ class RneAlgorithm(PinocchioWrapper):
     def calculate_acceleration(self,leg,pos,vel,acc): 
         end_eff_id = self.pin_robot.model.getFrameId(leg + "_ANKLE")
         J_real,J_dot,ades = self.get_frame_jacobian(end_eff_id)
-        frame_vel, frame_pos = self.calculate_velocity(end_eff_id, pos)
+        frame_vel, frame_pos ,err= self.calculate_velocity(end_eff_id, pos)
         vel_diff = vel - frame_vel.linear
         
-        dq = np.dot(np.linalg.pinv(J_real),vel_diff)
+        dq = np.dot(np.linalg.pinv(J_real),err[:3])
 
         ref_acc =acc + self.Kp * frame_pos + self.Kd * vel_diff
         frame_acc = ref_acc - ades.linear   
