@@ -26,8 +26,8 @@ class RneAlgorithm(PinocchioWrapper):
         self.q_base = np.array([0,0,0,0,0,0,1])
         self.dq_base = np.array([0,0,0,0,0,0])
         self.tau_con = np.zeros(12)
-        self.Kp = 12000
-        self.Kd = 500
+        self.Kp = 8000
+        self.Kd = 400
     def calculate_kinematics(self, qcurr, dqcurr):
         # qbase = np.array([qbase[1],qbase[2],qbase[3],qbase[0]])
         # self.q = np.concatenate((np.concatenate((self.q_base,qbase)), qcurr))

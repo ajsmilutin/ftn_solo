@@ -187,7 +187,7 @@ class RobotMove(TaskBase):
         else:
 
             for leg in ["FL", "FR", "HL", "HR"]:
-                pos, vel,acc = self.get_trajectory(t,leg, 0.06,0.06)
+                pos, vel,acc = self.get_trajectory(t,leg, 0.08,0.08)
                 ref_pos = self.joint_controller.moveSE3(self.R_y, pos)
                 dq,ddq = self.joint_controller.calculate_acceleration(leg,ref_pos,vel,acc)
                 self.ndq += dq
