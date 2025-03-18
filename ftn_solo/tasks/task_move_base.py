@@ -1,7 +1,6 @@
 from transitions import Machine
 import numpy as np
-from scipy.interpolate import CubicSpline
-from .task_base import TaskBase
+from .task_base import TaskWithInitPose
 from ftn_solo.controllers import PDWithFrictionCompensation
 from robot_properties_solo import Solo12Robot
 import pinocchio as pin
@@ -33,6 +32,7 @@ SQUARE = 2
 EX = 0
 TRIANGLE = 3
 CIRCLE = 1
+
 
 class MotionData:
     def __init__(self, config):
@@ -126,22 +126,12 @@ class PlaybackControl:
             exit()
         self.old_msg = msg
 
-class TaskMoveBase(TaskBase):
+
+class TaskMoveBase(TaskWithInitPose):
     states = ["start", "move_base", "move_eef"]
 
     def __init__(self, num_joints, robot_type, config_yaml) -> None:
-        self.step = 0
         super().__init__(num_joints, robot_type, config_yaml)
-        if robot_type == "solo12":
-            self.robot = Solo12Robot()
-        else:
-            raise ("Only solo12 supported")
-        self.joint_controller = PDWithFrictionCompensation(
-            self.robot.pin_robot, self.config["joint_controller"]
-        )
-        self.parse_poses(self.config["poses"])
-        self.on_start = SplineData(
-            self.config["on_start"], self.num_joints, self.poses)
         self.machine = Machine(
             model=self, states=TaskMoveBase.states, initial="start")
 
@@ -172,8 +162,8 @@ class TaskMoveBase(TaskBase):
         self.base_index = self.robot.pin_robot.model.getFrameId("base_link")
         self.initialized = False
         self.num_faces = 8
-        self.friction_coefficient = 0.9
-        self.torso_height = 0.25
+        self.friction_coefficient = 0.5
+        self.torso_height = 0.23
         self.friction_cones = dict()
         self.sequence = parse_sequence(self.config["crawl"])
         self.phase = -1
@@ -182,30 +172,12 @@ class TaskMoveBase(TaskBase):
         self.motions = MotionsVector()
         self.end_times = {}
         self.ik_data = pin.Data(self.robot.pin_robot.model)
-        self.max_torque = 2.2
+        self.max_torque = 1.8
         self.playback_controller = PlaybackControl()
         self.node.create_subscription(
             Joy, 'joy', self.playback_controller.joy_callback, 10)
         self.can_step = False
         self.status_publisher.publish(String(data="starting"))
-
-    def parse_poses(self, poses):
-        self.poses = {}
-        for pose_name in poses:
-            self.poses[pose_name] = np.array(
-                poses[pose_name], dtype=np.float64)
-
-    def init_pose(self, q, qv):
-        self.compute_trajectory(0, q, self.on_start)
-
-    def compute_trajectory(self, tstart, q, sequence):
-        self.transition_end = tstart + sequence.durations[-1]
-        self.trajectory = CubicSpline(
-            np.hstack(([tstart], tstart + sequence.durations)),
-            np.vstack((q, sequence.poses)),
-            bc_type="clamped",
-        )
-        self.last_pose = sequence.poses[-1, :]
 
     def get_tmp_friction_cones(self):
         self.tmp_friction_cones = self.estimator.get_friction_cones(
@@ -349,7 +321,7 @@ class TaskMoveBase(TaskBase):
         for motion in self.sequence[self.phase].motions:
             if type(motion) is EEFMotionData:
                 eef_motion = EEFPositionMotion(motion.eef_index, np.array(
-                    [True, True, True], dtype=bool), pin.SE3.Identity(), 1000, 1)
+                    [True, True, True], dtype=bool), pin.SE3.Identity(), 1500, 20)
                 eef_trajectory = SplineTrajectory(True)
                 position = self.robot.pin_robot.data.oMf[motion.eef_index].translation
                 eef_trajectory.add(position, 0)
@@ -358,7 +330,7 @@ class TaskMoveBase(TaskBase):
                     end_position = motion.positions[-1] + \
                         radius*motion.rotation[:, 2]
                     seventy_five = 0.2 * position + 0.8 * end_position
-                    seventy_five = seventy_five + 0.05 * motion.rotation[:, 2]
+                    seventy_five = seventy_five + 0.1 * motion.rotation[:, 2]
                     eef_trajectory.add(seventy_five, 0.75 *
                                        motion.times[0]*duration)
                     eef_trajectory.add(end_position, motion.times[0]*duration)
@@ -401,15 +373,8 @@ class TaskMoveBase(TaskBase):
             self.estimator, self.friction_cones, self.max_torque)
 
     def following_spline(self, t, q, qv, sensors):
-        if (t <= self.transition_end):
-            self.ref_position = self.trajectory(t)
-            self.ref_velocity = self.trajectory(t, 1)
-            self.ref_acceleration = self.trajectory(t, 2)
-        else:
-            self.ref_position = self.trajectory(self.transition_end)
-            self.ref_velocity = 0*self.trajectory(t, 1)
-            self.ref_acceleration = 0*self.trajectory(t, 2)
-
+        self.ref_position, self.ref_velocity,  self.ref_acceleration = self.trajectory.get(
+            t)
         self.control = self.joint_controller.compute_control(
             self.ref_position, self.ref_velocity, None, q, qv
         )
@@ -420,9 +385,10 @@ class TaskMoveBase(TaskBase):
                     self.can_step = True
                     self.playback_controller.step()
             elif not self.estimator:
-                self.status_publisher.publish(String(data="Creating estimator"))
+                self.status_publisher.publish(
+                    String(data="Creating estimator"))
                 self.estimator = FixedPointsEstimator(
-                    0.001,
+                    0.0010001,
                     self.robot.pin_robot.model,
                     self.robot.pin_robot.data,
                     self.robot.end_eff_ids,
@@ -457,7 +423,7 @@ class TaskMoveBase(TaskBase):
         finished = all(
             motion.finished() for motion in self.base_motions)
         self.control = self.controller.compute(
-            t, self.robot.pin_robot.model, self.robot.pin_robot.data, self.estimator, self.base_motions, self.control)
+            t, self.robot.pin_robot.model, self.robot.pin_robot.data, self.estimator, self.base_motions,  np.copy(self.control))
         if not self.finished:
             self.finished = finished and (self.phase < len(self.sequence) - 1)
             return False
@@ -485,7 +451,7 @@ class TaskMoveBase(TaskBase):
 
     def moving_eef(self, t, q, qv, sensors):
         self.control = self.controller.compute(
-            t, self.robot.pin_robot.model, self.robot.pin_robot.data, self.estimator, self.motions, self.control)
+            t, self.robot.pin_robot.model, self.robot.pin_robot.data, self.estimator, self.motions, np.copy(self.control))
         if not self.finished:
             contacts = self.check_contacts(t)
             joints = self.check_joints(t)
