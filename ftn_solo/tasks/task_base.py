@@ -4,6 +4,7 @@ from ftn_solo.utils.trajectories import SplineData
 from ftn_solo.controllers import PDWithFrictionCompensation
 import numpy as np
 from robot_properties_solo import Solo12Robot
+from ftn_solo_control import FixedRobotEstimator
 
 class TaskBase():
     def __init__(self, num_joints, robot_type, yaml_config) -> None:
@@ -28,7 +29,9 @@ class TaskWithInitPose(TaskBase):
         self.step = 0
         self.joint_controller = PDWithFrictionCompensation(
             self.robot.pin_robot, self.config["joint_controller"])
-
+        self.estimator = FixedRobotEstimator(
+            0.001, self.robot.pin_robot.model, self.robot.pin_robot.data, True, np.array([0, 0, 0.4]), np.eye(3)
+        )
     def parse_poses(self, poses):
         self.poses = {}
         for pose_name in poses:

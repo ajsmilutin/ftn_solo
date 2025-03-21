@@ -400,6 +400,9 @@ class ConnectorNode(Node):
         elif task == 'draw_shapes':
             self.task = TaskDrawShapes(self.connector.num_joints(),
                                        robot_version, self.config)
+        elif task == 'friction_identification':
+            self.task = TaskFrictionIdentification(self.connector.num_joints(
+            ),                                       robot_version, self.config)
         else:
             self.get_logger().error(
                 'Unknown task selected!!! Switching to joint_spline task!')

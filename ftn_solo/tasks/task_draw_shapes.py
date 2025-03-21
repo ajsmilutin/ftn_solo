@@ -9,8 +9,6 @@ from std_msgs.msg import ColorRGBA, String
 from ftn_solo.utils.conversions import ToPoint
 from copy import deepcopy
 from ftn_solo.utils.trajectories import create_square, get_trajectory_marker
-from ftn_solo_control import FixedRobotEstimator
-
 
 class TaskDrawShapes(TaskWithInitPose):
     states = ["start", "drawing_shapes"]
@@ -32,10 +30,6 @@ class TaskDrawShapes(TaskWithInitPose):
             MarkerArray, "shape_markers", 1)
         self.status_publisher = self.node.create_publisher(
             String, "status", 10)
-        self.estimator = FixedRobotEstimator(
-            0.001, self.robot.pin_robot.model, self.robot.pin_robot.data, True, np.array([
-                                                                                         0, 0, 0.4]), np.eye(3)
-        )
 
     def publish_shape_markers(self):
         for frame, trajectory in self.shapes.items():
