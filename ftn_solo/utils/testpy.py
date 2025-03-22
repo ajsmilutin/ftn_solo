@@ -1,92 +1,85 @@
+import casadi as cs
 import numpy as np
+import matplotlib.pyplot as plt
 
-# Quintic polynomial time scaling
-def poly5(t, t_start, t_end):
-    delta_t = t_end - t_start
-    tau = (t - t_start) / delta_t
-    result = np.zeros(3)
-    result[0] = (((6 * tau - 15) * tau) + 10) * tau * tau * tau
-    result[1] = (((30 * tau - 60) * tau) + 30) * tau * tau / delta_t
-    result[2] = (((120 * tau - 180) * tau) + 60) * tau / delta_t / delta_t
-    return result
+# Parameters
+m = 5.0  # Mass
+c = 0.1  # Damping coefficient
+k = 1.0  # Spring stiffness
+dt = 0.1  # Time step
+T = 5.0  # Time horizon
+N = int(T / dt)  # Number of steps
 
-# Compute interpolation for linear trajectories
-def compute_interpolation(s, p_start, p_end):
-    direction = p_end - p_start
-    pos = p_start + s[0] * direction
-    vel = s[1] * direction
-    acc = s[2] * direction
-    return pos, vel, acc
+# Define symbolic variables (SX)
+x1 = cs.SX.sym('x1')  # Position
+x2 = cs.SX.sym('x2')  # Velocity
+u = cs.SX.sym('u')    # Control input
 
-# Compute interpolation for rotational trajectories
-def compute_interpolation_rotation(s, q_start, q_end):
-    rotation_vector = np.log(np.linalg.inv(q_start) @ q_end)
-    pos = q_start @ np.exp(s[0] * rotation_vector)
-    vel = s[1] * q_start @ rotation_vector
-    acc = s[2] * q_start @ rotation_vector
-    return pos, vel, acc
+# Define system dynamics
+x1_dot = x2
+x2_dot = (u - c * x2 - k * x1) / m
+f = cs.Function('f', [x1, x2, u], [x1_dot, x2_dot])
 
-class PiecewiseLinearTrajectory:
-    def __init__(self):
-        self.points = []
-        self.times = []
-        self.loop = False
+# Define cost function (minimize control effort)
+cost = u**2
 
-    def add_point(self, point, time):
-        self.points.append(np.array(point))
-        self.times.append(time)
+# Define constraints (-1 <= u <= 1)
+g = [u]
+lbg = [-1]
+ubg = [1]
 
-    def close_loop(self, time):
-        self.loop = True
-        self.add_point(self.points[0], time)
+# Formulate NLP problem
+nlp = {
+    'x': cs.vertcat(x1, x2, u),  # Decision variables
+    'f': cost,  # Cost function
+    'g': cs.vertcat(*g)  # Constraints
+}
 
-    def evaluate(self, t):
-        if self.loop:
-            t = t % self.times[-1]
+# Create solver
+solver = cs.nlpsol('solver', 'ipopt', nlp)
 
-        segment = 0
-        while segment < len(self.times) - 1 and t > self.times[segment + 1]:
-            segment += 1
+# Initial state
+x0 = [1, 1]  # Initial position and velocity
 
-        t_start = self.times[segment]
-        t_end = self.times[segment + 1]
-        s = poly5(t, t_start, t_end)
+# Simulate the system
+X = [x0]  # State trajectory
+U = []    # Control trajectory
+for _ in range(N):
+    # Solve the optimization problem
+    result = solver(x0=[X[-1][0], X[-1][1], 0], lbg=lbg, ubg=ubg)
 
-        p_start = self.points[segment]
-        p_end = self.points[segment + 1]
+    # Extract control input
+    u_opt = float(result['x'][2])
+    U.append(u_opt)
 
-        return compute_interpolation(s, p_start, p_end)
+    # Simulate the system for one time step
+    x_dot = f(X[-1][0], X[-1][1], u_opt)  # Evaluate dynamics
+    x_dot_numeric = np.array([x_dot[0].full(), x_dot[1].full()]).flatten()  # Convert to NumPy array
+    x_next = x_dot_numeric * dt + np.array(X[-1])  # Update state
+    X.append(x_next.tolist())  # Convert to list for consistency
 
-    def zero_position(self):
-        return np.zeros_like(self.points[0]) if self.points else np.zeros(3)
+# Plot results
+time = [i * dt for i in range(N + 1)]  # Time steps
+x1_trajectory = [x[0] for x in X]  # Position trajectory
+x2_trajectory = [x[1] for x in X]  # Velocity trajectory
 
-    def zero_velocity(self):
-        return np.zeros_like(self.points[0]) if self.points else np.zeros(3)
+# Plot position (x1) and velocity (x2)
+plt.figure(figsize=(10, 6))
+plt.plot(time, x1_trajectory, label='Position (x1)', color='blue')
+plt.plot(time, x2_trajectory, label='Velocity (x2)', color='red')
+plt.xlabel('Time (s)')
+plt.ylabel('State')
+plt.title('State vs Time')
+plt.legend()
+plt.grid()
+plt.show()
 
-# Example usage
-trajectory = PiecewiseLinearTrajectory()
-trajectory.add_point([0, 0, 0], 0)
-trajectory.add_point([0.1, 0.05, 0.2], 1)
-trajectory.add_point([0.2, 0.1, 0], 2)
-trajectory.add_point([0, 0, 0], 3)
-trajectory.close_loop(4)
-
-time_data = np.linspace(0, 4, 500)
-pos_data = []
-vel_data = []
-acc_data = []
-
-for t in time_data:
-    pos, vel, acc = trajectory.evaluate(t)
-    pos_data.append(pos)
-    vel_data.append(vel)
-    acc_data.append(acc)
-
-pos_data = np.array(pos_data)
-vel_data = np.array(vel_data)
-acc_data = np.array(acc_data)
-
-# Print out results for debugging
-print("Position Data:\n", pos_data)
-print("Velocity Data:\n", vel_data)
-print("Acceleration Data:\n", acc_data)
+# Plot control input (u)
+plt.figure(figsize=(10, 6))
+plt.plot(time[:-1], U, label='Control Input (u)', color='green')
+plt.xlabel('Time (s)')
+plt.ylabel('Control Input (u)')
+plt.title('Control Input vs Time')
+plt.legend()
+plt.grid()
+plt.show()

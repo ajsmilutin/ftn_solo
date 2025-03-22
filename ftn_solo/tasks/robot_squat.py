@@ -113,10 +113,10 @@ class RobotMove(TaskBase):
 
     def init_pose(self, q, dq):
 
-        v1 = np.array([0.15, 0.20, -0.25])
-        v2 = np.array([0.15, -0.20, -0.25])
-        v3 = np.array([-0.17, 0.20, -0.25])
-        v4 = np.array([-0.17, -0.20, -0.25])
+        v1 = np.array([0.18, 0.20, -0.25])
+        v2 = np.array([0.18, -0.20, -0.25])
+        v3 = np.array([-0.18, 0.20, -0.25])
+        v4 = np.array([-0.18, -0.20, -0.25])
         odmes1 = self.pin_robot.moveSE3(self.R_y, v1)
         odmes2 = self.pin_robot.moveSE3(self.R_y, v2)
         odmes3 = self.pin_robot.moveSE3(self.R_y, v3)
@@ -171,6 +171,7 @@ class RobotMove(TaskBase):
                 np.array([0, x_vel, z_vel]), np.array([0, x_acc, z_acc])
 
     def compute_control(self, t, position, velocity, sensors):
+        start_time = time.time()
         self.ndq.fill(0)
         self.nddq.fill(0)
         # self.logger.info("Current ndq: {}".format(self.nddq))
@@ -182,12 +183,13 @@ class RobotMove(TaskBase):
                 self.nddq += ddq
 
             tourques = self.joint_controller.get_tourqe(self.ndq,self.nddq)
+            # self.logger.info("Sovle time: {}".format(time.time() - start_time))
             return tourques
 
         else:
 
             for leg in ["FL", "FR", "HL", "HR"]:
-                pos, vel,acc = self.get_trajectory(t,leg, 0.08,0.08)
+                pos, vel,acc = self.get_trajectory(t,leg, 0.04,0.04)
                 ref_pos = self.joint_controller.moveSE3(self.R_y, pos)
                 dq,ddq = self.joint_controller.calculate_acceleration(leg,ref_pos,vel,acc)
                 self.ndq += dq
@@ -196,5 +198,5 @@ class RobotMove(TaskBase):
 
             # self.logger.info("FIinal ddq: {}".format(self.nddq))
             tourques = self.joint_controller.get_tourqe(self.ndq,self.nddq)
-
+            # self.logger.info("Sovle time: {}".format(time.time() - start_time))
             return tourques

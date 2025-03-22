@@ -53,13 +53,14 @@ class RneAlgorithm(PinocchioWrapper):
         ref_acc =acc + self.Kp * frame_pos + self.Kd * vel_diff
         frame_acc = ref_acc - ades.linear   
         ddq = np.dot(np.linalg.pinv(J_real), frame_acc)
+        self.J_real += J_real
 
-        # self.logger.info("Ddq of current frame{}: {}".format(end_eff_id, ddq))
+        # self.logger.info("Jacobian {}:".format(self.J_real))
 
        
         return dq,ddq
 
     def get_tourqe(self,dq,ddq):
-        self.tau = self.compute_recrusive_newtone_euler(dq, ddq[6:],self.Fv,self.B,self.J_real[:3,6:],self.J_dot[:3,6:])
+        self.tau = self.compute_recursive_newton_euler(dq, ddq[6:],self.Fv,self.B,self.J_real[:3,6:],self.J_dot[:3,6:])
         return self.tau
  
