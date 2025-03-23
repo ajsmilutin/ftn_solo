@@ -71,10 +71,10 @@ class RobotMove(TaskBase):
         t_arc_points = np.array([0, 0.5, 1])
         front = np.array(
             [self.start_point-off,  self.start_point,  self.start_point+off])
-        zarc = np.array([-0.25, -0.20, -0.25])
+        zarc = np.array([-0.20, -0.15, -0.20])
         back = np.array(
             [self.start_point+off,  self.start_point,  self.start_point-off])
-        zline = np.array([-0.25, -0.25, -0.25])
+        zline = np.array([-0.20, -0.20, -0.20])
 
         x_f, x_b = (back, front) if self.backwards else (front, back)
 
@@ -189,7 +189,7 @@ class RobotMove(TaskBase):
         else:
 
             for leg in ["FL", "FR", "HL", "HR"]:
-                pos, vel,acc = self.get_trajectory(t,leg, 0.04,0.04)
+                pos, vel,acc = self.get_trajectory(t,leg, 0.05,0.05)
                 ref_pos = self.joint_controller.moveSE3(self.R_y, pos)
                 dq,ddq = self.joint_controller.calculate_acceleration(leg,ref_pos,vel,acc)
                 self.ndq += dq

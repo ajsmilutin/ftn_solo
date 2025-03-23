@@ -140,7 +140,7 @@ class PinocchioWrapper(object):
         return tau_constraint    
    
 
-    def compute_recursive_newton_euler(self, dq, ddq, Fv, B, J, J_dot):
+    def compute_recursive_newton_euler(self, dq, ddq, Fv, B, J, J_dot,tau_g):
 
         # tau = cs.MX.sym('tau', 12)  # 12 joint torques
         # Fc = cs.MX.sym('Fc', 3)     # 3 contact forces
@@ -218,28 +218,28 @@ class PinocchioWrapper(object):
 
         # ========================================================================================================================================
         # Augmented system 
-        h=np.dot(self.C[6:, 6:], dq[6:]) +  self.G[6:]
-        zero_block = np.zeros((J.shape[0], J.shape[0]))
-        A_aug = np.block([
-            [self.M[6:, 6:], J.T],
-            [J, zero_block]
-            ])
+        # h=np.dot(self.C[6:, 6:], dq[6:]) +  self.G[6:]
+        # zero_block = np.zeros((J.shape[0], J.shape[0]))
+        # A_aug = np.block([
+        #     [self.M[6:, 6:], J.T],
+        #     [J, zero_block]
+        #     ])
         
-        dynamics_rhs = np.dot(self.M[6:, 6:], ddq) + h
-        constraint_rhs = -np.dot(J_dot, dq[6:])
+        # dynamics_rhs = np.dot(self.M[6:, 6:], ddq) + h
+        # constraint_rhs = -np.dot(J_dot, dq[6:])
 
-        b_aug = np.concatenate([dynamics_rhs, constraint_rhs])
+        # b_aug = np.concatenate([dynamics_rhs, constraint_rhs])
 
-        solution = np.linalg.lstsq(A_aug, b_aug, rcond=1e-6)[0]
-        ddq_test = solution[:12]         # Joint accelerations
-        lambda_vector = solution[12:]  # Constraint forces
+        # solution = np.linalg.lstsq(A_aug, b_aug, rcond=1e-6)[0]
+        # ddq_test = solution[:12]         # Joint accelerations
+        # lambda_vector = solution[12:]  # Constraint forces
 
-        tau = np.dot(self.M[6:, 6:], ddq_test) + h + np.dot(J.T, lambda_vector) + np.dot(Fv,dq[6:]) + B   # Add constraint contribution
+        # tau = np.dot(self.M[6:, 6:], ddq_test) + h + np.dot(J.T, lambda_vector) + np.dot(Fv,dq[6:]) + B   # Add constraint contribution
 
         #========================================================================================================================================
 
 
-        # tau = np.dot(self.M[6:, 6:], ddq) + np.dot(self.C[6:, 6:], dq[6:]) + np.dot(Fv,dq[6:]) + B + self.G[6:]
+        tau = np.dot(self.M[6:, 6:], ddq) + np.dot(self.C[6:, 6:], dq[6:]) + np.dot(Fv,dq[6:]) + B + self.G[6:] + tau_g
 
         # self.logger.info("tau: {}".format(tau))
         # self.logger.info("tau_test: {}".format(tau_test))

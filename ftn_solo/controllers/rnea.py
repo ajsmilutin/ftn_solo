@@ -21,11 +21,13 @@ class RneAlgorithm(PinocchioWrapper):
         self.dq_curr = np.array([])
         self.dq = np.array([])
         self.ndq = np.zeros(18)
+        self.tau_g = np.zeros(18)
         self.J_real =np.zeros((3, 18))
         self.J_dot =np.zeros((3, 18))
         self.q_base = np.array([0,0,0,0,0,0,1])
         self.dq_base = np.array([0,0,0,0,0,0])
         self.tau_con = np.zeros(12)
+        self.force_g = np.array([[0],[0],[-6.13]])
         self.Kp = 8000
         self.Kd = 400
     def calculate_kinematics(self, qcurr, dqcurr):
@@ -36,6 +38,7 @@ class RneAlgorithm(PinocchioWrapper):
         self.ndq.fill(0)
         self.J_real.fill(0)
         self.J_dot.fill(0)
+        self.tau_g.fill(0)
         self.framesForwardKinematics(self.q, self.dq_curr)
         self.computeFrameJacobian(self.q,self.dq_curr)
         self.computeNonLinear(self.q, self.dq_curr)
@@ -54,13 +57,14 @@ class RneAlgorithm(PinocchioWrapper):
         frame_acc = ref_acc - ades.linear   
         ddq = np.dot(np.linalg.pinv(J_real), frame_acc)
         self.J_real += J_real
-
-        # self.logger.info("Jacobian {}:".format(self.J_real))
+        tau_g = np.dot(J_real.T,self.force_g)
+        self.tau_g += tau_g.flatten()
+        # self.logger.info("Tau gravity {}:".format(self.tau_g[6:]))
 
        
         return dq,ddq
 
     def get_tourqe(self,dq,ddq):
-        self.tau = self.compute_recursive_newton_euler(dq, ddq[6:],self.Fv,self.B,self.J_real[:3,6:],self.J_dot[:3,6:])
+        self.tau = self.compute_recursive_newton_euler(dq, ddq[6:],self.Fv,self.B,self.J_real[:3,6:],self.J_dot[:3,6:],self.tau_g[6:])
         return self.tau
  
