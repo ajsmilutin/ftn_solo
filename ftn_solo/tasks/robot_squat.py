@@ -26,6 +26,7 @@ class RobotMove(TaskBase):
         self.backwards = False
         self.move_x = False
         self.move_y = False
+        self.off_time = time.time()
 
         self.ndq = np.zeros(18)
         self.nddq = np.zeros(18)
@@ -45,23 +46,24 @@ class RobotMove(TaskBase):
                 self.move_x = True
                 self.move_y = False
                 self.start_point = 0.196
-                off = np.clip(abs(msg.linear.x), 0.0, 0.08)
+                self.off = np.clip(abs(msg.linear.x), 0.0, 0.08)
             elif msg.linear.y != 0:
                 self.backwards = msg.linear.y < 0
                 self.move_y = True
                 self.move_x = False
                 self.start_point = 0.1469
-                off = np.clip(abs(msg.linear.y), 0.0, 0.04)
+                self.off = np.clip(abs(msg.linear.y), 0.0, 0.04)
             elif msg.angular.z != 0:
                 self.backwards = msg.angular.z < 0
                 self.move_x = False
                 self.move_y = False
                 self.start_point = 0.1469
-                off = np.clip(abs(msg.angular.z), 0.00, 0.08)
+                self.off = np.clip(abs(msg.angular.z), 0.00, 0.08)
             else:
-                off = 0.0
+                self.off = 0.0
+                self.off_time = time.time()
 
-            self.define_splines(off)
+            self.define_splines(self.off)
             self.old_msg = msg
         else:
             pass
@@ -113,10 +115,10 @@ class RobotMove(TaskBase):
 
     def init_pose(self, q, dq):
 
-        v1 = np.array([0.18, 0.20, -0.25])
-        v2 = np.array([0.18, -0.20, -0.25])
-        v3 = np.array([-0.18, 0.20, -0.25])
-        v4 = np.array([-0.18, -0.20, -0.25])
+        v1 = np.array([0.18, 0.15, -0.25])
+        v2 = np.array([0.18, -0.15, -0.25])
+        v3 = np.array([-0.18, 0.15, -0.25])
+        v4 = np.array([-0.18, -0.15, -0.25])
         odmes1 = self.pin_robot.moveSE3(self.R_y, v1)
         odmes2 = self.pin_robot.moveSE3(self.R_y, v2)
         odmes3 = self.pin_robot.moveSE3(self.R_y, v3)
@@ -124,6 +126,20 @@ class RobotMove(TaskBase):
         self.steps = [odmes1, odmes2, odmes3, odmes4]
 
         return self.steps
+
+    def recovery_pose(self):
+        v1 = np.array([0.196, 0.1469, -0.14])
+        v2 = np.array([0.196, -0.1469, -0.36])
+        v3 = np.array([-0.196, 0.1469, -0.36])
+        v4 = np.array([-0.196, -0.1469, -0.36])
+        odmes1 = self.pin_robot.moveSE3(self.R_y, v1)
+        odmes2 = self.pin_robot.moveSE3(self.R_y, v2)
+        odmes3 = self.pin_robot.moveSE3(self.R_y, v3)
+        odmes4 = self.pin_robot.moveSE3(self.R_y, v4)
+        self.steps = [odmes1, odmes2, odmes3, odmes4]
+
+        return self.steps
+        
 
     def get_trajectory(self, t, leg, T, T2):
 
@@ -171,7 +187,11 @@ class RobotMove(TaskBase):
                 np.array([0, x_vel, z_vel]), np.array([0, x_acc, z_acc])
 
     def compute_control(self, t, position, velocity, sensors):
-        start_time = time.time()
+        if self.off==0:
+            if time.time() - self.off_time > 5:
+                # self.recovery_pose()
+                self.start = False
+        
         self.ndq.fill(0)
         self.nddq.fill(0)
         # self.logger.info("Current ndq: {}".format(self.nddq))

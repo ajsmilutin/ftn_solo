@@ -234,12 +234,12 @@ class PinocchioWrapper(object):
         # ddq_test = solution[:12]         # Joint accelerations
         # lambda_vector = solution[12:]  # Constraint forces
 
-        # tau = np.dot(self.M[6:, 6:], ddq_test) + h + np.dot(J.T, lambda_vector) + np.dot(Fv,dq[6:]) + B   # Add constraint contribution
+        # tau = np.dot(self.M[6:, 6:], ddq_test) + h + np.dot(J.T, lambda_vector) + np.dot(Fv,dq[6:]) + B + tau_g  # Add constraint contribution
 
         #========================================================================================================================================
 
 
-        tau = np.dot(self.M[6:, 6:], ddq) + np.dot(self.C[6:, 6:], dq[6:]) + np.dot(Fv,dq[6:]) + B + self.G[6:] + tau_g
+        tau = np.dot(self.M[6:, 6:], ddq) + np.dot(self.C[6:, 6:], dq[6:]) + np.dot(Fv,dq[6:]) + B + self.G[6:]
 
         # self.logger.info("tau: {}".format(tau))
         # self.logger.info("tau_test: {}".format(tau_test))
