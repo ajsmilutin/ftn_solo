@@ -27,6 +27,7 @@ from ftn_solo_control import (
     MotionsVector,
     TrajectoryPlanner
 )
+import yaml
 
 SQUARE = 2
 EX = 0
@@ -90,7 +91,7 @@ class PlaybackControl:
 
     def __init__(self):
         self.machine = Machine(
-            model=self, states=PlaybackControl.states, initial="running")
+            model=self, states=PlaybackControl.states, initial="stopped")
         self.machine.add_transition("start", "stopped", "running")
         self.machine.add_transition("start", "one_step", "running")
         self.machine.add_transition("stop", "running", "stopped")
@@ -162,8 +163,9 @@ class TaskMoveBase(TaskWithInitPose):
         self.base_index = self.robot.pin_robot.model.getFrameId("base_link")
         self.initialized = False
         self.num_faces = 8
-        self.friction_coefficient = 0.5
-        self.torso_height = 0.23
+        self.friction_coefficient = 0.9
+        #self.torso_height = 0.23
+        self.torso_height = 0.3
         self.friction_cones = dict()
         self.sequence = parse_sequence(self.config["crawl"])
         self.phase = -1
@@ -172,12 +174,14 @@ class TaskMoveBase(TaskWithInitPose):
         self.motions = MotionsVector()
         self.end_times = {}
         self.ik_data = pin.Data(self.robot.pin_robot.model)
-        self.max_torque = 1.8
+        self.max_torque = self.config["max_torque"]
         self.playback_controller = PlaybackControl()
         self.node.create_subscription(
             Joy, 'joy', self.playback_controller.joy_callback, 10)
         self.can_step = False
         self.status_publisher.publish(String(data="starting"))
+        self.new_contact = 0
+        self.ending_contact = 0
 
     def get_tmp_friction_cones(self):
         self.tmp_friction_cones = self.estimator.get_friction_cones(
@@ -296,7 +300,7 @@ class TaskMoveBase(TaskWithInitPose):
 
     def compute_base_trajectory_start(self, t, q, qv, sensors):
         self.get_tmp_friction_cones()
-        duration = self.sequence[self.phase].duration
+        duration = self.sequence[self.phase].duration              
         self.origin_pose = self.get_new_origin(self.tmp_friction_cones)
         if self.sequence[self.phase].torso_height:
             self.torso_height = self.sequence[self.phase].torso_height
@@ -321,16 +325,26 @@ class TaskMoveBase(TaskWithInitPose):
         for motion in self.sequence[self.phase].motions:
             if type(motion) is EEFMotionData:
                 eef_motion = EEFPositionMotion(motion.eef_index, np.array(
-                    [True, True, True], dtype=bool), pin.SE3.Identity(), 1500, 20)
+                    [True, True, True], dtype=bool), pin.SE3.Identity(), 300, 8)
                 eef_trajectory = SplineTrajectory(True)
                 position = self.robot.pin_robot.data.oMf[motion.eef_index].translation
+                rotation = self.robot.pin_robot.data.oMf[motion.eef_index].rotation
                 eef_trajectory.add(position, 0)
-                radius = 0.018
+                radius = 0.016
+                # UNITREEEE
+                radius = 0.02
                 if (len(motion.positions) == 1):
+                    #unitree
                     end_position = motion.positions[-1] + \
-                        radius*motion.rotation[:, 2]
+                        radius*motion.rotation[:, 2] - \
+                        0.00*motion.rotation[:, 2]
+                    # 0.02
+                    twenty_five = 0.8*position  + 0.2* end_position
+                    twenty_five = twenty_five + 0.05 * rotation[:,2]
                     seventy_five = 0.2 * position + 0.8 * end_position
-                    seventy_five = seventy_five + 0.1 * motion.rotation[:, 2]
+                    seventy_five = seventy_five + 0.05 * motion.rotation[:, 2]
+                    eef_trajectory.add(twenty_five, 0.25 *
+                                       motion.times[0]*duration)
                     eef_trajectory.add(seventy_five, 0.75 *
                                        motion.times[0]*duration)
                     eef_trajectory.add(end_position, motion.times[0]*duration)
@@ -370,7 +384,7 @@ class TaskMoveBase(TaskWithInitPose):
 
     def init_qp(self):
         self.controller = WholeBodyController(
-            self.estimator, self.friction_cones, self.max_torque)
+            self.estimator, self.friction_cones, self.max_torque, yaml.dump(self.config["whole_body"]))
 
     def following_spline(self, t, q, qv, sensors):
         self.ref_position, self.ref_velocity,  self.ref_acceleration = self.trajectory.get(
@@ -402,6 +416,12 @@ class TaskMoveBase(TaskWithInitPose):
                     self.compute_base_trajectory_start(t, q, qv, sensors)
                     return False
                 elif self.trajectory_planner.computation_done():
+                    self.ending_contact = 0
+                    if self.phase + 1 < len(self.sequence):
+                        for motion in self.sequence[self.phase+1].motions:
+                            if type(motion) is EEFMotionData:
+                                self.ending_contact = motion.eef_index
+                                break
                     self.status_publisher.publish(
                         String(data="Finished trajectory planning"))
                     self.compute_base_trajectory_finish(t)
@@ -422,8 +442,14 @@ class TaskMoveBase(TaskWithInitPose):
     def moving_base(self, t, q, qv, sensors):
         finished = all(
             motion.finished() for motion in self.base_motions)
+
+        for m in self.base_motions:
+            alpha = m.get_alpha(t)
+
+    
         self.control = self.controller.compute(
-            t, self.robot.pin_robot.model, self.robot.pin_robot.data, self.estimator, self.base_motions,  np.copy(self.control))
+            t, self.robot.pin_robot.model, self.robot.pin_robot.data, self.estimator, self.base_motions,  np.copy(self.control), alpha, self.new_contact, self.ending_contact)
+
         if not self.finished:
             self.finished = finished and (self.phase < len(self.sequence) - 1)
             return False
@@ -446,12 +472,17 @@ class TaskMoveBase(TaskWithInitPose):
             self.can_step = False
             self.status_publisher.publish(
                 String(data="Moving EEF, phase: {}".format(self.phase)))
+            self.new_contact = self.ending_contact
+            self.ending_contact = 0
             return True
         return False
 
     def moving_eef(self, t, q, qv, sensors):
+        for m in self.base_motions:
+            alpha = m.get_alpha(t)
+
         self.control = self.controller.compute(
-            t, self.robot.pin_robot.model, self.robot.pin_robot.data, self.estimator, self.motions, np.copy(self.control))
+            t, self.robot.pin_robot.model, self.robot.pin_robot.data, self.estimator, self.motions, np.copy(self.control), alpha,  self.new_contact, self.ending_contact)
         if not self.finished:
             contacts = self.check_contacts(t)
             joints = self.check_joints(t)
@@ -489,6 +520,11 @@ class TaskMoveBase(TaskWithInitPose):
                 for m in self.base_motions:
                     m.set_start(t)
                 self.num_contacts = len(self.friction_cones)
+                if self.phase < len(self.sequence):
+                    for motion in self.sequence[self.phase].motions:
+                        if type(motion) is EEFMotionData:
+                            self.ending_contact = motion.eef_index
+                            break
                 self.init_qp()
                 self.finished = False
                 self.can_step = False
@@ -542,9 +578,11 @@ class TaskMoveBase(TaskWithInitPose):
             normal = motion.rotation[:, 2]
             v = np.dot(normal, vel)
             f = np.dot(normal, f)
+            # unitree
+            # t- 0.02
             p = (
                 0.5
-                * (1 + erf((t - self.end_times[motion.eef_index]) / sigma_t))
+                * (1 + erf((t -  self.end_times[motion.eef_index]) / sigma_t))
                 * (1 - erf(np.abs(v) / sigma_v))
                 * 0.5 * (1 + erf((f-0.7) / sigma_f))
             )
@@ -575,5 +613,6 @@ class TaskMoveBase(TaskWithInitPose):
 
                 self.publisher.publish(marker_array)
         self.tick(t, q, qv, sensors)
-        spin_once(self.node, timeout_sec=0)
+        spin_once(self.node, timeout_sec=0)   
+        print("CCCCCCCCCCCCCCC {}".format(self.control))
         return self.control

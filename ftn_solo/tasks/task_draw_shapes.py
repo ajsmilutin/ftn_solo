@@ -38,13 +38,13 @@ class TaskDrawShapes(TaskWithInitPose):
 
     def compute_shapes(self, t, q, qv):
         self.shapes[self.robot.fl_index] = create_square(deepcopy(
-            self.robot.pin_robot.data.oMf[self.robot.fl_index].translation), np.array([1, 0, 0]), np.array([0, 1, 0]), 0.15, 5)
+            self.robot.pin_robot.data.oMf[self.robot.fl_index].translation), np.array([1, 0, 0]), np.array([0, 1, 0]), 0.1, 5)
         self.shapes[self.robot.fr_index] = create_square(deepcopy(
             self.robot.pin_robot.data.oMf[self.robot.fr_index].translation), np.array([1, 0, 0]), -np.array([0, 1, 0]), 0.1, 5)
         self.shapes[self.robot.hl_index] = create_square(deepcopy(
-            self.robot.pin_robot.data.oMf[self.robot.hl_index].translation), np.array([0, 0, 1]), np.array([0, 1, 0]), 0.1, 5)
+            self.robot.pin_robot.data.oMf[self.robot.hl_index].translation), np.array([0, 0, 1]), np.array([0, 1, 0]), 0.075, 5)
         self.shapes[self.robot.hr_index] = create_square(deepcopy(
-            self.robot.pin_robot.data.oMf[self.robot.hr_index].translation), np.array([0, 0, 1]), -np.array([0, 1, 0]), 0.1, 5)
+            self.robot.pin_robot.data.oMf[self.robot.hr_index].translation), np.array([0, 0, 1]), -np.array([0, 1, 0]), 0.075, 5)
         self.publish_shape_markers()
         for _, trajectory in self.shapes.items():
             trajectory.set_start(t)
@@ -53,8 +53,8 @@ class TaskDrawShapes(TaskWithInitPose):
         J = np.zeros((0, self.robot.pin_robot.nv-6), dtype=np.float64)
         Ades = np.zeros((0, 1), dtype=np.float64)
         Vdes = np.zeros((0, 1), dtype=np.float64)
-        Kp = 800
-        Kd = 5
+        Kp = 400
+        Kd = 10
         for frame, trajectory in self.shapes.items():
             pos, vel, acc = trajectory.get(t)
             J_real = pin.getFrameJacobian(
@@ -83,6 +83,7 @@ class TaskDrawShapes(TaskWithInitPose):
         self.robot.forward_robot(self.estimator.estimated_q, self.estimator.estimated_qv)
         pin.crba(self.robot.pin_robot.model, self.robot.pin_robot.data, self.estimator.estimated_q)
         pin.nonLinearEffects(self.robot.pin_robot.model, self.robot.pin_robot.data, self.estimator.estimated_q, self.estimator.estimated_qv)
+        pin.computeGeneralizedGravity(self.robot.pin_robot.model, self.robot.pin_robot.data, self.estimator.estimated_q)
 
         if (self.step % 50 == 0):
             marker_array = MarkerArray()

@@ -8,7 +8,7 @@ from visualization_msgs.msg import MarkerArray, Marker
 from std_msgs.msg import ColorRGBA
 from ftn_solo.utils.conversions import ToPoint
 from ftn_solo.utils.trajectories import SplineData
-from ftn_solo.controllers import PDWithFrictionAndGravityCompensation
+from ftn_solo.controllers import PDWithFrictionCompensation
 
 
 class TaskJointSpline(TaskWithInitPose):
@@ -28,7 +28,7 @@ class TaskJointSpline(TaskWithInitPose):
         self.machine.add_transition(
             "tick", "follow_spline", "follow_spline", conditions="following_spline")
 
-        self.joint_controller = PDWithFrictionAndGravityCompensation(
+        self.joint_controller = PDWithFrictionCompensation(
             self.robot.pin_robot, self.config["joint_controller"])
         self.machine.on_enter_follow_spline(self.compute_spline)
         self.node = Node("node")
@@ -47,8 +47,6 @@ class TaskJointSpline(TaskWithInitPose):
                  self.estimator.estimated_q)
         pin.nonLinearEffects(self.robot.pin_robot.model,
                              self.robot.pin_robot.data, self.estimator.estimated_q, self.estimator.estimated_qv)
-
-        print(self.estimator.estimated_q.shape)
         self.tick(t, self.estimator.estimated_q[-self.num_joints:],
                   self.estimator.estimated_qv[-self.num_joints:])
         return self.control

@@ -36,7 +36,6 @@ class PDWithFrictionAndGravityCompensation(PDWithFrictionCompensation):
         self.robot = robot
 
     def compute_control(self, ref_position, ref_velocity, ref_acceleration, position, velocity):
-        print(  self.robot.data.nle[6:])
         return self.clip(self.compute_pd(ref_position, ref_velocity, ref_acceleration, position, velocity) +
                          self.compute_friction(
                              ref_position, ref_velocity, ref_acceleration, position, velocity)

@@ -143,6 +143,7 @@ class TaskFrictionIdentification(TaskWithInitPose):
             self.ref_position, self.ref_velocity, q, qv)
 
     def go_to_idle(self, t, q, qv):
+        print("SEQUENCE {} LENT {} T {} END {}".format(self.sequence_phase, len(self.sequence), t, self.transition_end))
         return (self.sequence) and (self.sequence_phase >= len(self.sequence)) and (t >= self.transition_end)
 
     def do_nothing(self, t, q, qv):
