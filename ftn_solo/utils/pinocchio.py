@@ -43,11 +43,6 @@ class PinocchioWrapper(object):
         self.J_list=[]
         self.max_tau = 10.0
 
-    def mass(self, q):
-        return pin.crba(self.model, self.data, q)
-
-    def gravity(self, q):
-        return pin.computeGeneralizedGravity(self.model, self.data, q)
 
     def moveSE3(self, R, T):
         oMdes = pin.SE3(R, T)
@@ -58,7 +53,7 @@ class PinocchioWrapper(object):
 
     
 
-    def framesForwardKinematics(self, q, dq):
+    def frames_forward_kinematics(self, q, dq):
         pin.framesForwardKinematics(self.model, self.data, q)
         pin.forwardKinematics(self.model, self.data, q, dq,0*dq)
         
@@ -81,12 +76,12 @@ class PinocchioWrapper(object):
     
 
 
-    def computeFrameJacobian(self, q,dq):
+    def compute_frame_jacobian(self, q,dq):
         pin.computeJointJacobians(self.model, self.data, q)
         pin.computeJointJacobiansTimeVariation(self.model, self.data, q, dq)
         pin.updateFramePlacements(self.model, self.data)
 
-    def computeNonLinear(self, q, dq):
+    def compute_non_linear(self, q, dq):
         self.M = pin.crba(self.model, self.data, q)
         self.C = pin.computeCoriolisMatrix(self.model, self.data, q, dq)
         self.G = pin.computeGeneralizedGravity(self.model, self.data, q)
@@ -107,38 +102,8 @@ class PinocchioWrapper(object):
         return  self.J[:3,:], J_dot[:3,:],ades
     
 
-    def get_acceleration(self, q, dq, tau_ref):
-        
-        pin.aba(self.model, self.data, q, dq, tau_ref)
-        return self.data.ddq
-
-    def get_delta_error(self):
-        return self.delta_error
+  
     
-
-    def get_tau_constraint(self,J_real,J_dot,dq):
-        h = np.dot(self.C[6:,6:], dq[6: ]) + self.G[6:]
-        Jdot_theta = np.dot(J_dot[:,6:], dq[6:])
-        J = J_real[:,6:]
-        zero_block = np.zeros((J.shape[0], J.shape[0]))
-        b = np.concatenate((-h, -Jdot_theta))  
-        a = np.block([
-            [self.M[6:,6:],J.T],
-            [J,zero_block]
-        ])
-
-        epsilon = 1e-6  # Small regularization constant
-        a_reg = a + epsilon * np.eye(a.shape[0])
-
-       
-
-        solve = np.linalg.solve(a_reg, b)
-        ddq = solve[:self.M[6:,6:].shape[0]]
-        lamba = solve[self.M[6:,6:].shape[0]:]
-        
-        tau_constraint = np.dot(J.T, lamba)
-        return tau_constraint    
-   
 
     def compute_recursive_newton_euler(self, dq, ddq, Fv, B, J, J_dot,tau_g):
 
@@ -238,8 +203,8 @@ class PinocchioWrapper(object):
 
         #========================================================================================================================================
 
-
-        tau = np.dot(self.M[6:, 6:], ddq) + np.dot(self.C[6:, 6:], dq[6:]) + np.dot(Fv,dq[6:]) + B + self.G[6:]
+        # tau = np.dot(self.M[6:, 6:], ddq) + np.dot(self.C[6:, 6:], dq[6:]) + np.dot(Fv,dq[6:]) + B + self.G[6:] #No constraint contribution
+        tau = np.dot(self.M[6:, 6:], ddq) + np.dot(self.C[6:, 6:], dq[6:]) + np.dot(Fv,dq[6:]) + B + self.G[6:] + tau_g  # Add constraint contribution
 
         # self.logger.info("tau: {}".format(tau))
         # self.logger.info("tau_test: {}".format(tau_test))

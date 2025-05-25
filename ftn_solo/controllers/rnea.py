@@ -27,7 +27,7 @@ class RneAlgorithm(PinocchioWrapper):
         self.q_base = np.array([0,0,0,0,0,0,1])
         self.dq_base = np.array([0,0,0,0,0,0])
         self.tau_con = np.zeros(12)
-        self.force_g = np.array([[0],[0],[-6.13]])
+        self.force_g = np.array([[0],[0],[-9.13]])
         self.Kp = 8000
         self.Kd = 400
     def calculate_kinematics(self, qcurr, dqcurr):
@@ -39,9 +39,9 @@ class RneAlgorithm(PinocchioWrapper):
         self.J_real.fill(0)
         self.J_dot.fill(0)
         self.tau_g.fill(0)
-        self.framesForwardKinematics(self.q, self.dq_curr)
-        self.computeFrameJacobian(self.q,self.dq_curr)
-        self.computeNonLinear(self.q, self.dq_curr)
+        self.frames_forward_kinematics(self.q, self.dq_curr)
+        self.compute_frame_jacobian(self.q,self.dq_curr)
+        self.compute_non_linear(self.q, self.dq_curr)
 
        
 

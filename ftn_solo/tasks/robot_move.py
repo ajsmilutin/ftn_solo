@@ -79,7 +79,7 @@ class RobotMove(TaskBase):
     def compute_control(self, t,position, velocity, sensors):
         toqrues = self.joint_controller.rnea(self.steps[self.step],position,velocity,sensors['attitude'])
         self.i+=1
-        # if self.joint_controller.get_delta_error() < self.eps:
+      
         self.logger.info("sensor: {}".format(sensors['touch'][1]))
         if self.i == 500:
             self.step = self.step + 1
