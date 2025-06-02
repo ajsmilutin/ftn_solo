@@ -63,7 +63,7 @@ class RobotConnector(Connector):
         self.robot.initialize(
             np.array([0]*self.robot.joints.number_motors, dtype=np.float64))
         self.running = True
-        self.dt = 0.001
+        self.dt = 0.0010001
         self.nanoseconds = self.dt*1e9
 
     def get_data(self):
@@ -256,14 +256,17 @@ class MujocoConnector(SimulationConnector):
         xml_string = xacro.process(self.resources.mjcf_path + ".xacro", mappings={
                                    "environment": environment_path, "resources_dir": self.resources.resources_dir})
         self.model = mujoco.MjModel.from_xml_string(xml_string)
-        self.model.opt.timestep = 1e-3
+        self.model.opt.timestep = 0.0010001
+
         if fixed:
             self.model.equality("fixed").active0 = True
-
         self.data = mujoco.MjData(self.model)
         self.data.qpos[0:3] = pos
         mujoco.mju_euler2Quat(self.data.qpos[3:7], rpy, "XYZ")
         self.data.qpos[7:] = 0
+        self.data.qpos[8::3] = 0.75
+        self.data.qpos[9::3] = -1.5
+    
 
         self.data.qvel[:] = 0
         self.joint_names = [self.model.joint(
@@ -385,7 +388,7 @@ class ConnectorNode(Node):
                     robot_version, self.get_logger(), fixed=self.fixed, pos=pos, rpy=rpy)
         else:
             niceness = os.nice(0)
-            niceness = os.nice(-15-niceness)
+            niceness = os.nice(-20-niceness)
             self.get_logger().info("Setting niceness to {}".format(niceness))
             self.allowed_time = 1.0
             self.connector = RobotConnector(robot_version,  self.get_logger())
@@ -400,8 +403,11 @@ class ConnectorNode(Node):
         elif task == 'draw_shapes':
             self.task = TaskDrawShapes(self.connector.num_joints(),
                                        robot_version, self.config)
+        elif task == 'friction_identification':
+            self.task = TaskFrictionIdentification(self.connector.num_joints(
+            ),                                       robot_version, self.config)
         else:
-            self.logger.error(
+            self.get_logger().error(
                 'Unknown task selected!!! Switching to joint_spline task!')
             self.task = TaskJointSpline(
                 robot_version, "/home/ajsmilutin/solo/solo_ws/src/ftn_solo/config/controllers/eurobot_demo.yaml")
@@ -414,53 +420,73 @@ class ConnectorNode(Node):
         transform = TransformStamped()
         position, velocity = self.connector.get_data()
         self.task.init_pose(position, velocity)
+        num_rows = 50000
+        # all_data=np.ndarray((num_rows, 12+12+12+6+1), dtype=np.float64)
+        # print(all_data)
         while self.connector.is_running():
+            start_time = time.time()
+            # if c == num_rows:
+                # np.savetxt("/home/ajsmilutin/solo_ws/data_sim.csv", all_data, delimiter=",")
             if self.connector.is_paused():
                 continue
             position, velocity = self.connector.get_data()
+            # all_data[c, 0] = time.time()-start_time
+            # all_data[c, 7:19] = position
+            # all_data[c, 19:31] = velocity
             sensors = self.connector.get_sensor_readings()
+            # all_data[c, 1] = time.time()-start_time
             if self.time_publisher:
                 elapsed = self.clock.clock.sec + self.clock.clock.nanosec / 1e9
             else:
                 elapsed = (self.get_clock().now() - start).nanoseconds / 1e9
 
             try:
-                with time_limit(self.allowed_time):
+                with time_limit(10000):                    
                     torques = self.task.compute_control(
                         elapsed, position, velocity, sensors)
+                    # all_data[c, 2] = time.time()-start_time                    
                     if self.time_publisher:
                         self.clock.clock.nanosec += int(self.connector.dt * 1000000000)
                         self.clock.clock.sec += self.clock.clock.nanosec // 1000000000
                         self.clock.clock.nanosec = self.clock.clock.nanosec % 1000000000
-                        self.time_publisher.publish(self.clock)
+                        # self.time_publisher.publish(self.clock)
                     c += 1
-                    if (c % 2 == 0):
-                        stamp = self.get_clock().now().to_msg()
+                    if (c % 20 == 0):
                         if self.time_publisher:
-                            joint_state.header.stamp = self.clock.clock
+                            stamp = self.clock.clock
+                        else:
+                            stamp = self.get_clock().now().to_msg()
+                            
                         if hasattr(self.task, "estimator"):
                             if self.task.estimator and self.task.estimator.initialized():
                                 self.task.estimator.publish_state(stamp.sec, stamp.nanosec)
+                                # all_data[c-1, 31:43] = self.task.estimator.estimated_qv[-12:]
                         else:
+                            joint_state.header.stamp = stamp
                             joint_state.position = position.tolist()
                             joint_state.velocity = velocity.tolist()
                             joint_state.name = self.connector.joint_names
-                            self.join_state_pub.publish(joint_state)
+                            # self.join_state_pub.publish(joint_state)
                             transform.header.stamp = joint_state.header.stamp
                             transform.header.frame_id = "world"
                             transform.child_frame_id = "base_link"
                             if self.fixed:
-                                transform.transform.translation.z = 0.4
+                                transform.transform.translation.z = 0.7
                             transform.transform.rotation.w = sensors.imu_data.attitude[0]
                             transform.transform.rotation.x = sensors.imu_data.attitude[1]
                             transform.transform.rotation.y = sensors.imu_data.attitude[2]
                             transform.transform.rotation.z = sensors.imu_data.attitude[3]
-                            self.tf_broadcaster.sendTransform(transform)
+                            # self.tf_broadcaster.sendTransform(transform)
+                    # all_data[c-1, 3] = time.time()-start_time                            
             except TimeoutException as e:
                 self.get_logger().error("====== TIMED OUT! ======")
                 exit()
             self.connector.set_torques(torques)
+            # all_data[c-1, 4] = time.time()-start_time
             self.connector.step()
+            # all_data[c-1, 5] = time.time()-start_time
+            # all_data[c-1, 6] = elapsed
+            print("Elapsed {}".format(elapsed))
 
 
 def main(args=None):

@@ -12,14 +12,33 @@ class PDWithFrictionCompensation():
         self.Kd = float_or_list(yaml_config["Kd"], num_joints)
         self.B = float_or_list(yaml_config["B"], num_joints)
         self.Fv = float_or_list(yaml_config["Fv"], num_joints)
-        self.friction_cutoff = float_or_list(
-            yaml_config["friction_cutoff"], num_joints)
+        self.sigma = float_or_list(
+            yaml_config["sigma"], num_joints)
         self.max_control = float_or_list(
             yaml_config["max_control"], num_joints)
 
-    def compute_control(self, ref_position, ref_velocity, ref_acceleration, position, velocity):
-        friction_velocity = np.where(
-            abs(ref_velocity) > self.friction_cutoff, ref_velocity, 0)
-        control = self.Kp * (ref_position - position) + self.Kd * (ref_velocity -
-                                                                   velocity) + self.B * ref_velocity + self.Fv * np.sign(friction_velocity)
+    def clip(self,control)        :
         return np.clip(control, -self.max_control, self.max_control)
+
+    def compute_pd(self, ref_position, ref_velocity, ref_acceleration, position, velocity):
+        return self.Kp * (ref_position - position) + self.Kd * (ref_velocity - velocity)
+
+    def compute_friction(self, ref_position, ref_velocity, ref_acceleration, position, velocity):
+        return self.B * ref_velocity + self.Fv * np.arctan(ref_velocity / self.sigma) * 2/np.pi
+
+    def compute_control(self, ref_position, ref_velocity, ref_acceleration, position, velocity):
+        return self.clip(self.compute_pd(ref_position, ref_velocity, ref_acceleration, position, velocity) +
+                         self.compute_friction(ref_position, ref_velocity, ref_acceleration, position, velocity))
+
+class PDWithFrictionAndGravityCompensation(PDWithFrictionCompensation):
+    def __init__(self, robot, yaml_config):
+        super().__init__(robot, yaml_config)
+        self.robot = robot
+
+    def compute_control(self, ref_position, ref_velocity, ref_acceleration, position, velocity):
+        return self.clip(self.compute_pd(ref_position, ref_velocity, ref_acceleration, position, velocity) +
+                         self.compute_friction(
+                             ref_position, ref_velocity, ref_acceleration, position, velocity)
+                          + self.robot.data.nle[6:]
+                         )
+
