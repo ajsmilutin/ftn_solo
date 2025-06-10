@@ -7,6 +7,8 @@ import rclpy
 from ftn_solo.utils.bullet_env import BulletEnvWithGround
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
+from geometry_msgs.msg import Twist
+from geometry_msgs.msg import TransformStamped
 import numpy as np
 from rosgraph_msgs.msg import Clock
 import time
@@ -15,9 +17,9 @@ import yaml
 from robot_properties_solo import Resources
 from ftn_solo.tasks import *
 from tf2_ros import TransformBroadcaster
-from geometry_msgs.msg import TransformStamped
 from ftn_solo.utils.conversions import ToVector
 from ftn_solo_control import SensorData
+from rclpy.executors import MultiThreadedExecutor
 import xacro
 import os
 from ament_index_python.packages import get_package_share_directory
@@ -243,9 +245,15 @@ class PybulletConnector(SimulationConnector):
 class MujocoConnector(SimulationConnector):
     def __init__(self, robot_version, logger, use_gui=True, start_paused=False, fixed=False, pos=[0, 0, 0.4], rpy=[0.0, 0.0, 0.0], environment="", environments_package="") -> None:
         super().__init__(robot_version, logger)
+        
+        # First check if the MJCF file exists
+        if not os.path.exists(self.resources.mjcf_path):
+            raise FileNotFoundError(f"MJCF file not found: {self.resources.mjcf_path}")
+            
+        # Read the MJCF file directly
         with open(self.resources.mjcf_path, 'r') as file:
             xml_string = file.read()
-
+        
         environment_path = ""
         if not environment == "":
             if not environments_package == "":
@@ -253,8 +261,28 @@ class MujocoConnector(SimulationConnector):
                     get_package_share_directory(environments_package), environment)
             else:
                 environment_path = environment
-        xml_string = xacro.process(self.resources.mjcf_path + ".xacro", mappings={
-                                   "environment": environment_path, "resources_dir": self.resources.resources_dir})
+                
+        # Fix mesh paths in the XML string
+        # Get the directory where the MJCF file is located
+        mjcf_dir = os.path.dirname(self.resources.mjcf_path)
+        # Replace relative mesh paths with absolute paths
+        import re
+        mesh_dir_pattern = re.compile(r'meshdir="([^"]*)"')
+        match = mesh_dir_pattern.search(xml_string)
+        if match:
+            relative_mesh_dir = match.group(1)
+            # Convert relative path to absolute path
+            absolute_mesh_dir = os.path.abspath(os.path.join(mjcf_dir, relative_mesh_dir))
+            # Make sure the directory exists
+            if not os.path.exists(absolute_mesh_dir):
+                self.logger.warn(f"Mesh directory {absolute_mesh_dir} does not exist, trying to find meshes in resources directory")
+                # Try to find meshes in the resources directory
+                absolute_mesh_dir = os.path.join(self.resources.resources_dir, "meshes/stl/solo12/")
+                if not os.path.exists(absolute_mesh_dir):
+                    self.logger.error(f"Could not find mesh directory at {absolute_mesh_dir}")
+            # Replace the relative path with the absolute path in the XML
+            xml_string = mesh_dir_pattern.sub(f'meshdir="{absolute_mesh_dir}"', xml_string)
+            
         self.model = mujoco.MjModel.from_xml_string(xml_string)
         self.model.opt.timestep = 1e-3
         if fixed:
@@ -350,6 +378,9 @@ class ConnectorNode(Node):
         self.join_state_pub = self.create_publisher(
             JointState, "/joint_states", 10)
         self.tf_broadcaster = TransformBroadcaster(self)
+        self.twist_subscriber = self.create_subscription(
+            Twist, "/cmd_vel", self.cmd_vel_callback, 10
+        )
         robot_version = self.get_parameter(
             'robot_version').get_parameter_value().string_value
         task = self.get_parameter(
@@ -375,7 +406,6 @@ class ConnectorNode(Node):
                 'pos').get_parameter_value().double_array_value
             rpy = self.get_parameter(
                 'rpy').get_parameter_value().double_array_value
-            # Can go lower if we set niceness
             self.allowed_time = 0.1
             if hardware.lower() == 'mujoco':
                 self.connector = MujocoConnector(robot_version, self.get_logger(),
@@ -400,12 +430,19 @@ class ConnectorNode(Node):
         elif task == 'draw_shapes':
             self.task = TaskDrawShapes(self.connector.num_joints(),
                                        robot_version, self.config)
+        elif task == 'robot_move':
+            self.get_logger().info("Initializing RobotMove task with existing configuration")
+            self.task = RobotMove(self.connector.num_joints(),
+                               robot_version, self.config, self.get_logger(), self.connector.dt)
         else:
             self.get_logger().error(
                 'Unknown task selected!!! Switching to joint_spline task!')
             self.task = TaskJointSpline(
                 robot_version, "/home/ajsmilutin/solo/solo_ws/src/ftn_solo/config/controllers/eurobot_demo.yaml")
         self.task.dt = self.connector.dt
+
+    def cmd_vel_callback(self, msg):
+        self.task.define_movement(msg)
 
     def run(self):
         c = 0
@@ -466,8 +503,20 @@ class ConnectorNode(Node):
 def main(args=None):
     rclpy.init(args=args)
     node = ConnectorNode()
-    node.run()
-    rclpy.shutdown()
+    
+    executor = MultiThreadedExecutor(num_threads=2)
+    executor.add_node(node)
+    
+    import threading
+    exec_thread = threading.Thread(target=executor.spin, daemon=True)
+    exec_thread.start()
+    
+    try:
+        node.run()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        rclpy.shutdown()
 
 
 if __name__ == '__main__':
