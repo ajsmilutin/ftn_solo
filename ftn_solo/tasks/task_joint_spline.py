@@ -3,7 +3,7 @@ import numpy as np
 from scipy.interpolate import CubicSpline
 from .task_base import TaskBase
 from ftn_solo.controllers import PDWithFrictionCompensation
-from robot_properties_solo import Solo12Robot
+from robot_properties_solo.solo12wrapper import Solo12Robot
 import pinocchio as pin
 from rclpy.node import Node
 from visualization_msgs.msg import MarkerArray, Marker
