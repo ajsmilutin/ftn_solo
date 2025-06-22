@@ -76,12 +76,7 @@ crawl:
       orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
       times: [0.5]
     duration: 2
-  - motions:
-    - eef: 34
-      position: [-0.07, -0.14, 0]
-      orientation: [0.0, 0.0, 0.0, 1.0] # x, y, z, w
-      times: [0.5]
-    duration: 2
+z
 
   - motions:
     - eef: 10

@@ -28,6 +28,7 @@ from ftn_solo_control import (
     TrajectoryPlanner
 )
 from copy import deepcopy
+import yaml
 
 SQUARE = 2
 EX = 0
@@ -161,10 +162,10 @@ class TaskMoveBase(TaskWithInitPose):
         self.tf_broadcaster = TransformBroadcaster(self.node)
         self.base_index = self.robot.pin_robot.model.getFrameId("base_link")
         self.initialized = False
-        self.num_faces = 8
-        self.friction_coefficient = 0.9
-        #self.torso_height = 0.23
-        self.torso_height = 0.3
+        self.num_faces = 12
+        self.friction_coefficient = 0.85
+        self.torso_height = 0.25
+        #self.torso_height = 0.3
         self.friction_cones = dict()
         self.sequence = parse_sequence(self.config["crawl"])
         self.phase = -1
@@ -217,8 +218,6 @@ class TaskMoveBase(TaskWithInitPose):
             for motion in self.sequence[self.phase].motions:
                 if type(motion) is EEFMotionData:
                     del self.next_friction_cones[motion.eef_index]
-        for c in self.next_friction_cones:
-            publish_cone_marker(c.data(), show_dual=False)                    
 
     def update_phase(self):
         self.fix_eef()
@@ -307,6 +306,7 @@ class TaskMoveBase(TaskWithInitPose):
             self.torso_height = self.sequence[self.phase].torso_height
         self.trajectory_planner = TrajectoryPlanner(
             self.robot.pin_robot.model, self.base_index, self.origin_pose)
+        self.node.get_logger().error("Torso height: {}".format(self.torso_height))
         self.trajectory_planner.start_computation(t, self.tmp_friction_cones, self.tmp_next_friction_cones,
                                                   self.estimator.estimated_q, duration, self.torso_height, self.max_torque)
 
@@ -331,14 +331,14 @@ class TaskMoveBase(TaskWithInitPose):
                 position = self.robot.pin_robot.data.oMf[motion.eef_index].translation
                 rotation = self.robot.pin_robot.data.oMf[motion.eef_index].rotation
                 eef_trajectory.add(position, 0)
-                radius = 0.016
+                # radius = 0.016
                 # UNITREEEE
                 radius = 0.02
                 if (len(motion.positions) == 1):
                     #unitree
                     end_position = motion.positions[-1] + \
                         radius*motion.rotation[:, 2] - \
-                        0.00*motion.rotation[:, 2]
+                        0.01*motion.rotation[:, 2]
                     # 0.02
                     twenty_five = 0.8*position  + 0.2* end_position
                     twenty_five = twenty_five + 0.05 * rotation[:,2]
@@ -400,7 +400,7 @@ class TaskMoveBase(TaskWithInitPose):
                     self.can_step = True
                     self.playback_controller.step()
             elif not self.estimator:
- 		marker_array = MarkerArray()
+                marker_array = MarkerArray()
                 marker = Marker()
                 marker.header.frame_id = "world"
                 marker.action = Marker.ADD
@@ -614,7 +614,7 @@ class TaskMoveBase(TaskWithInitPose):
             # t- 0.02
             p = (
                 0.5
-                * (1 + erf((t -  self.end_times[motion.eef_index]) / sigma_t))
+                * (1 + erf((t - 0.2 -  self.end_times[motion.eef_index]) / sigma_t))
                 * (1 - erf(np.abs(v) / sigma_v))
                 * 0.5 * (1 + erf((f-0.7) / sigma_f))
             )
@@ -645,5 +645,4 @@ class TaskMoveBase(TaskWithInitPose):
                 self.publisher.publish(marker_array)
         self.tick(t, q, qv, sensors)
         spin_once(self.node, timeout_sec=0)   
-        print("CCCCCCCCCCCCCCC {}".format(self.control))
         return self.control

@@ -19,14 +19,14 @@ on_start:
 crawl:
 - motions:
   - eef: 12
-    position: [0.45, 0.14, 0.15]
+    position: [0.45, 0.14, 0.175]
     orientation: [0.0,  -0.707, 0,  0.707 ] # x, y, z, w
     times: [0.5]
   duration: 2
   torso_height: 0.3
 - motions:
   - eef: 26
-    position: [0.45, -0.14, 0.15]
+    position: [0.45, -0.14, 0.175]
     orientation: [0.0,  -0.707, 0,  0.707 ] # x, y, z, w
     times: [0.5]
   duration: 2
@@ -180,7 +180,7 @@ whole_body:
   B: 0.0
   Fv: 0.0
   sigma: [0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05]  
-  lambda_tangential: 0.3
+  lambda_tangential: 0.1
   lambda_torque: 0.0
-  smooth: 0.95
+  smooth: 0.9
   # lambda_kd: 0.01

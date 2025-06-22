@@ -264,8 +264,9 @@ class MujocoConnector(SimulationConnector):
         self.data.qpos[0:3] = pos
         mujoco.mju_euler2Quat(self.data.qpos[3:7], rpy, "XYZ")
         self.data.qpos[7:] = 0
-        self.data.qpos[8::3] = 0.75
-        self.data.qpos[9::3] = -1.5
+        # UNITREEE
+        # self.data.qpos[8::3] = 0.75
+        # self.data.qpos[9::3] = -1.5
     
 
         self.data.qvel[:] = 0
