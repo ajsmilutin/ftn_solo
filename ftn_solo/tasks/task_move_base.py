@@ -326,7 +326,7 @@ class TaskMoveBase(TaskWithInitPose):
         for motion in self.sequence[self.phase].motions:
             if type(motion) is EEFMotionData:
                 eef_motion = EEFPositionMotion(motion.eef_index, np.array(
-                    [True, True, True], dtype=bool), pin.SE3.Identity(), 300, 8)
+                    [True, True, True], dtype=bool), pin.SE3.Identity(), 100, 1)
                 eef_trajectory = SplineTrajectory(True)
                 position = self.robot.pin_robot.data.oMf[motion.eef_index].translation
                 rotation = self.robot.pin_robot.data.oMf[motion.eef_index].rotation

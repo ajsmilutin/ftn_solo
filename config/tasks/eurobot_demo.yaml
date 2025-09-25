@@ -14,17 +14,19 @@ poses:
   siting: [ 0.0, 0.4, 0.0, 0.0, 0.4, 0.0, 0.0, -1.2, 2.5, 0.0, -1.2, 2.5 ]
 on_start:
   poses: [ "initial_pose" ]
-  durations: [ 10.0 ]
+  durations: [ 2.0 ]
 
 loop:
 - poses: [ "zero_pose", "initial_pose", "zero_pose", "initial_pose", "zero_pose", "initial_pose" ]
   durations: [ 2.0, 4.0, 6.0, 8.0, 10.0, 12.0 ]
 - poses: ["siting"]
-  durations: [ 5.0 ]
-- poses: ["siting"]
-  durations: [ 5.0 ]  
+  durations: [ 3.0 ]
 - poses: [ "upper_pose" ]
-  durations: [ 5.0 ]
+  durations: [ 3.0 ]  
+- poses: ["siting"]
+  durations: [ 3.0 ]  
+- poses: [ "upper_pose" ]
+  durations: [ 3.0 ]
 - poses: [ "zero_pose" ]
   durations: [ 2.0 ]
 
