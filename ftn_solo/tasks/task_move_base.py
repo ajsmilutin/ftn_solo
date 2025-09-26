@@ -182,7 +182,7 @@ class TaskMoveBase(TaskBase):
         self.motions = MotionsVector()
         self.end_times = {}
         self.ik_data = pin.Data(self.robot.pin_robot.model)
-        self.max_torque = 2.2
+        self.max_torque = 2.5
         self.playback_controller = PlaybackControl()
         self.node.create_subscription(
             Joy, 'joy', self.playback_controller.joy_callback, 10)
