@@ -243,9 +243,6 @@ class PybulletConnector(SimulationConnector):
 class MujocoConnector(SimulationConnector):
     def __init__(self, robot_version, logger, use_gui=True, start_paused=False, fixed=False, pos=[0, 0, 0.4], rpy=[0.0, 0.0, 0.0], environment="", environments_package="") -> None:
         super().__init__(robot_version, logger)
-        with open(self.resources.mjcf_path, 'r') as file:
-            xml_string = file.read()
-
         environment_path = ""
         if not environment == "":
             if not environments_package == "":
@@ -367,8 +364,6 @@ class ConnectorNode(Node):
         if hardware.lower() != "robot":
             use_gui = self.get_parameter(
                 'use_gui').get_parameter_value().bool_value
-            start_paused = self.get_parameter(
-                'start_paused').get_parameter_value().bool_value
             self.fixed = self.get_parameter(
                 'fixed').get_parameter_value().bool_value
             pos = self.get_parameter(
