@@ -243,9 +243,6 @@ class PybulletConnector(SimulationConnector):
 class MujocoConnector(SimulationConnector):
     def __init__(self, robot_version, logger, use_gui=True, start_paused=False, fixed=False, pos=[0, 0, 0.4], rpy=[0.0, 0.0, 0.0], environment="", environments_package="") -> None:
         super().__init__(robot_version, logger)
-        with open(self.resources.mjcf_path, 'r') as file:
-            xml_string = file.read()
-
         environment_path = ""
         if not environment == "":
             if not environments_package == "":
@@ -264,8 +261,9 @@ class MujocoConnector(SimulationConnector):
         self.data.qpos[0:3] = pos
         mujoco.mju_euler2Quat(self.data.qpos[3:7], rpy, "XYZ")
         self.data.qpos[7:] = 0
-        self.data.qpos[8::3] = 0.75
-        self.data.qpos[9::3] = -1.5
+        # UNITREEE
+        # self.data.qpos[8::3] = 0.75
+        # self.data.qpos[9::3] = -1.5
     
 
         self.data.qvel[:] = 0
@@ -389,7 +387,7 @@ class ConnectorNode(Node):
         else:
             niceness = os.nice(0)
             niceness = os.nice(-20-niceness)
-            self.get_logger().info("Setting niceness to {}".format(niceness))
+            self.get_logger().error("Setting niceness to {}".format(niceness))
             self.allowed_time = 1.0
             self.connector = RobotConnector(robot_version,  self.get_logger())
 
@@ -456,7 +454,6 @@ class ConnectorNode(Node):
                             stamp = self.clock.clock
                         else:
                             stamp = self.get_clock().now().to_msg()
-                            
                         if hasattr(self.task, "estimator"):
                             if self.task.estimator and self.task.estimator.initialized():
                                 self.task.estimator.publish_state(stamp.sec, stamp.nanosec)
@@ -476,7 +473,7 @@ class ConnectorNode(Node):
                             transform.transform.rotation.x = sensors.imu_data.attitude[1]
                             transform.transform.rotation.y = sensors.imu_data.attitude[2]
                             transform.transform.rotation.z = sensors.imu_data.attitude[3]
-                            # self.tf_broadcaster.sendTransform(transform)
+                            self.tf_broadcaster.sendTransform(transform)
                     # all_data[c-1, 3] = time.time()-start_time                            
             except TimeoutException as e:
                 self.get_logger().error("====== TIMED OUT! ======")

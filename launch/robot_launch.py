@@ -58,7 +58,7 @@ def launch_setup(context, *args, **kwargs):
                     get_package_share_directory("ftn_solo"),
                     "config",
                     "rviz",
-                    "robot.rviz",
+                    "viz.rviz",
                 ),
             ],
             parameters=[{"use_sim_time": use_sim_time}],
@@ -106,6 +106,10 @@ def launch_setup(context, *args, **kwargs):
 
             ],
         ),
+        Node(package="tf2_ros",
+             executable="static_transform_publisher",
+             arguments=["0", "0",  "0",  "0", "-1.0471", "0", "world", "viz"]),
+
     ]
 
 

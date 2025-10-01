@@ -1,0 +1,91 @@
+ns: wct_ com
+  id: 216
+  type: 2
+  action: 0
+  pose:
+    position:
+      x: -0.106067811920763
+      y: -0.0619680078845695
+      z: 0.001
+--
+  ns: wct_ com
+  id: 216
+  type: 2
+  action: 0
+  pose:
+    position:
+      x: -0.06296053933662872
+      y: 0.04429032484148184
+      z: 0.001
+--
+  ns: wct_ com
+  id: 216
+  type: 2
+  action: 0
+  pose:
+    position:
+      x: -0.05342502679561414
+      y: -0.04642277548883097
+      z: 0.001
+--
+  ns: wct_ com
+  id: 216
+  type: 2
+  action: 0
+  pose:
+    position:
+      x: -0.038310815777882576
+      y: 0.05077283128287808
+      z: 0.001
+--
+  ns: wct_ com
+  id: 216
+  type: 2
+  action: 0
+  pose:
+    position:
+      x: -0.013227372645175327
+      y: -0.0557801064130318
+      z: 0.001
+--
+  ns: wct_ com
+  id: 216
+  type: 2
+  action: 0
+  pose:
+    position:
+      x: 0.010578368579367305
+      y: 0.061008027397423885
+      z: 0.001
+--
+  ns: wct_ com
+  id: 216
+  type: 2
+  action: 0
+  pose:
+    position:
+      x: 0.02448938863818425
+      y: -0.061026272718791824
+      z: 0.001
+--
+  ns: wct_ com
+  id: 216
+  type: 2
+  action: 0
+  pose:
+    position:
+      x: 0.019735552091667476
+      y: 0.06191947025235536
+      z: 0.001
+--
+  ns: wct_ com
+  id: 216
+  type: 2
+  action: 0
+  pose:
+    position:
+      x: 0.08193559404266088
+      y: 0.0006198671398560139
+      z: 0.001
+
+
