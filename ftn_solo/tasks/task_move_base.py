@@ -184,6 +184,8 @@ class TaskMoveBase(TaskWithInitPose):
         )
         self.can_step = False
         self.status_publisher.publish(String(data="starting"))
+        self.new_contact = 0
+        self.ending_contact = 0
 
     def get_tmp_friction_cones(self):
         self.tmp_friction_cones = self.estimator.get_friction_cones(
@@ -419,6 +421,12 @@ class TaskMoveBase(TaskWithInitPose):
                     self.compute_base_trajectory_start(t, q, qv, sensors)
                     return False
                 elif self.trajectory_planner.computation_done():
+                    self.ending_contact = 0
+                    if self.phase + 1 < len(self.sequence):
+                        for motion in self.sequence[self.phase + 1].motions:
+                            if type(motion) is EEFMotionData:
+                                self.ending_contact = motion.eef_index
+                                break
                     self.status_publisher.publish(
                         String(data="Finished trajectory planning")
                     )
@@ -441,6 +449,10 @@ class TaskMoveBase(TaskWithInitPose):
 
     def moving_base(self, t, q, qv, sensors):
         finished = all(motion.finished() for motion in self.base_motions)
+
+        for motion in self.base_motions:
+            alpha = motion.get_alpha(t)
+
         self.control = self.controller.compute(
             t,
             self.robot.pin_robot.model,
@@ -448,6 +460,9 @@ class TaskMoveBase(TaskWithInitPose):
             self.estimator,
             self.base_motions,
             np.copy(self.control),
+            alpha,
+            self.new_contact,
+            self.ending_contact,
         )
         if not self.finished:
             self.finished = finished and (self.phase < len(self.sequence) - 1)
@@ -475,10 +490,15 @@ class TaskMoveBase(TaskWithInitPose):
             self.status_publisher.publish(
                 String(data="Moving EEF, phase: {}".format(self.phase))
             )
+            self.new_contact = self.ending_contact
+            self.ending_contact = 0
             return True
         return False
 
     def moving_eef(self, t, q, qv, sensors):
+        for motion in self.motions:
+            alpha = motion.get_alpha(t)
+
         self.control = self.controller.compute(
             t,
             self.robot.pin_robot.model,
@@ -486,6 +506,9 @@ class TaskMoveBase(TaskWithInitPose):
             self.estimator,
             self.motions,
             np.copy(self.control),
+            alpha,
+            self.new_contact,
+            self.ending_contact,
         )
         if not self.finished:
             contacts = self.check_contacts(t)
@@ -542,6 +565,11 @@ class TaskMoveBase(TaskWithInitPose):
                 for m in self.base_motions:
                     m.set_start(t)
                 self.num_contacts = len(self.friction_cones)
+                if self.phase < len(self.sequence):
+                    for motion in self.sequence[self.phase].motions:
+                        if type(motion) is EEFMotionData:
+                            self.ending_contact = motion.eef_index
+                            break
                 self.init_qp()
                 self.finished = False
                 self.can_step = False
