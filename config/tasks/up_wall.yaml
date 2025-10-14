@@ -45,7 +45,7 @@ joint_controller:
   Kd : 0.05
   B: 0.0
   Fv: 0.0
-  friction_cutoff: 0.1
+  sigma: 0.05
   max_control: 1.8
 
 max_torque: 2.5
@@ -104,53 +104,3 @@ crawl:
 
   - motions: []
     duration: 2
-
-  # - motions:
-  #   - eef: 10
-  #     position: [0.36, 0.14, 0.22]
-  #     orientation: [0.0,  -0.707, 0,  0.707 ] # x, y, z, w
-  #   duration: 2
-  # - motions:
-  #   - eef: 34
-  #     position: [-0.36, -0.14, 0.22]
-  #     orientation: [0.0,  0.707, 0,  0.707 ] # x, y, z, w
-  #   duration: 2
-  # - motions:
-  #   - eef: 26
-  #     position: [-0.36, 0.14, 0.22]
-  #     orientation: [0.0,  0.707, 0,  0.707 ] # x, y, z, w
-  #   duration: 2
-
-  # - motions:
-  #   - eef: 18
-  #     position: [0.36, -0.14, 0.22]
-  #     orientation: [0.0,  -0.707, 0,  0.707 ] # x, y, z, w
-  #   duration: 2
-
-  # - motions:
-  #   - eef: 10
-  #     position: [0.36, 0.14, 0.29]
-  #     orientation: [0.0,  -0.707, 0,  0.707 ] # x, y, z, w
-  #   duration: 2
-  # - motions:
-  #   - eef: 34
-  #     position: [-0.36, -0.14, 0.29]
-  #     orientation: [0.0,  0.707, 0,  0.707 ] # x, y, z, w
-  #   duration: 2
-  # - motions:
-  #   - eef: 26
-  #     position: [-0.36, 0.14, 0.29]
-  #     orientation: [0.0,  0.707, 0,  0.707 ] # x, y, z, w
-  #   duration: 2
-
-  # - motions:
-  #   - eef: 18
-  #     position: [0.36, -0.14, 0.29]
-  #     orientation: [0.0,  -0.707, 0,  0.707 ] # x, y, z, w
-  #   duration: 2
-
-  # - motions: []
-  #   duration: 2
-
-  # - motions: []
-  #   duration: 2

@@ -63,7 +63,7 @@ class RobotConnector(Connector):
         self.robot.initialize(
             np.array([0]*self.robot.joints.number_motors, dtype=np.float64))
         self.running = True
-        self.dt = 0.001
+        self.dt = 0.0010001
         self.nanoseconds = self.dt*1e9
 
     def get_data(self):
@@ -253,10 +253,10 @@ class MujocoConnector(SimulationConnector):
         xml_string = xacro.process(self.resources.mjcf_path + ".xacro", mappings={
                                    "environment": environment_path, "resources_dir": self.resources.resources_dir})
         self.model = mujoco.MjModel.from_xml_string(xml_string)
-        self.model.opt.timestep = 1e-3
+        self.model.opt.timestep = 0.0010001
+
         if fixed:
             self.model.equality("fixed").active0 = True
-
         self.data = mujoco.MjData(self.model)
         self.data.qpos[0:3] = pos
         mujoco.mju_euler2Quat(self.data.qpos[3:7], rpy, "XYZ")

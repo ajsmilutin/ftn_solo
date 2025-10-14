@@ -1,2 +1,2 @@
-from .pd import PDWithFrictionCompensation
+from .pd import PDWithFrictionCompensation, PDWithFrictionAndGravityCompensation
 from .feedback_linearizaiton import FeedbackLinearization
