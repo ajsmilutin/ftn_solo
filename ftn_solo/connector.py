@@ -19,12 +19,14 @@ from ftn_solo.tasks.task_joint_spline import TaskJointSpline
 from tf2_ros import TransformBroadcaster
 from geometry_msgs.msg import TransformStamped
 import threading
+import xacro    
+import os
 
 
-class Connector():
+class Connector:
     def __init__(self, robot_version, logger, *args, **kwargs) -> None:
         self.resources = Resources(robot_version)
-        with open(self.resources.config_path, 'r') as stream:
+        with open(self.resources.config_path, "r") as stream:
             try:
                 self.config = yaml.safe_load(stream)
             except Exception as exc:
@@ -36,13 +38,17 @@ class RobotConnector(Connector):
     def __init__(self, robot_version, logger, *args, **kwargs) -> None:
         super().__init__(robot_version, logger, *args, **kwargs)
         import libodri_control_interface_pywrap as oci
+
         self.robot = oci.robot_from_yaml_file(self.resources.config_path)
         self.joint_names = self.config["robot"]["joint_modules"]["joint_names"]
         self.robot.initialize(
-            np.array([0]*self.robot.joints.number_motors, dtype=np.float64))
+            np.array([0] * self.robot.joints.number_motors, dtype=np.float64)
+        )
         self.running = True
-        self.dT = 0.001
-        self.nanoseconds = self.dT*1e9
+        self.dt = 0.001
+        self.nanoseconds = self.dt * 1e9
+        niceness = os.nice(0)
+        niceness = os.nice(-20-niceness)
 
     def get_data(self):
         self.robot.parse_sensor_data()
@@ -59,7 +65,7 @@ class RobotConnector(Connector):
         return not (self.robot.has_error)
 
     def step(self):
-        self.robot.send_command_and_wait_end_of_cycle(self.dT)
+        self.robot.send_command_and_wait_end_of_cycle(self.dt)
         return True
 
     def num_joints(self):
@@ -74,12 +80,16 @@ class SimulationConnector(Connector):
     def __init__(self, robot_version, logger, *args, **kwargs) -> None:
         super().__init__(robot_version, logger, *args, **kwargs)
 
-        self.simulate_encoders = self.config.get(
-            "simulation") and self.config["simulation"].get("simulate_encoders", False)
+        self.simulate_encoders = self.config.get("simulation") and self.config[
+            "simulation"
+        ].get("simulate_encoders", False)
         if self.simulate_encoders:
-            self.resolution = 2*math.pi / \
-                self.config["robot"]["joint_modules"]["counts_per_revolution"] / \
-                self.config["robot"]["joint_modules"]["gear_ratios"]
+            self.resolution = (
+                2
+                * math.pi
+                / self.config["robot"]["joint_modules"]["counts_per_revolution"]
+                / self.config["robot"]["joint_modules"]["gear_ratios"]
+            )
             self.old_q = None
 
     def process_coordinates(self, q, qdot):
@@ -89,14 +99,23 @@ class SimulationConnector(Connector):
             q = np.round(q / self.resolution) * self.resolution
             if self.old_q is None:
                 self.old_q = q
-                return q, 0*qdot
-            qdot = (q - self.old_q)/self.dt
+                return q, 0 * qdot
+            qdot = (q - self.old_q) / self.dt
             self.old_q = q
             return q, qdot
 
 
 class PybulletConnector(SimulationConnector):
-    def __init__(self, robot_version, logger, fixed=False, pos=[0, 0, 0.4], rpy=[0.0, 0.0, 0.0], *args, **kwargs) -> None:
+    def __init__(
+        self,
+        robot_version,
+        logger,
+        fixed=False,
+        pos=[0, 0, 0.4],
+        rpy=[0.0, 0.0, 0.0],
+        *args,
+        **kwargs
+    ) -> None:
         super().__init__(robot_version, logger)
 
         self.env = BulletEnvWithGround(robot_version)
@@ -114,23 +133,26 @@ class PybulletConnector(SimulationConnector):
         self.joint_names = []
         self.joint_ids = []
         self.end_effector_ids = []
-        self.touch_sensors = ['fl', 'fr', 'hl', 'hr']
-        self.end_effector_names = ['FR_ANKLE',
-                                   'FL_ANKLE', 'HR_ANKLE', 'HL_ANKLE']
+        self.touch_sensors = ["fl", "fr", "hl", "hr"]
+        self.end_effector_names = ["FR_ANKLE", "FL_ANKLE", "HR_ANKLE", "HL_ANKLE"]
         self.reading = {}
         self.running = True
         self.rot_base_to_imu = np.identity(3)
         self.r_base_to_imu = np.array([0.10407, -0.00635, 0.01540])
 
         for ji in range(pybullet.getNumJoints(self.robot_id)):
-            if pybullet.getJointInfo(self.robot_id, ji)[1].decode("UTF-8") in self.end_effector_names:
+            if (
+                pybullet.getJointInfo(self.robot_id, ji)[1].decode("UTF-8")
+                in self.end_effector_names
+            ):
                 self.end_effector_ids.append(
-                    pybullet.getJointInfo(self.robot_id, ji)[0]-1)
+                    pybullet.getJointInfo(self.robot_id, ji)[0] - 1
+                )
             elif pybullet.JOINT_FIXED != pybullet.getJointInfo(self.robot_id, ji)[2]:
                 self.joint_names.append(
-                    pybullet.getJointInfo(self.robot_id, ji)[1].decode("UTF-8"))
-                self.joint_ids.append(
-                    pybullet.getJointInfo(self.robot_id, ji)[0])
+                    pybullet.getJointInfo(self.robot_id, ji)[1].decode("UTF-8")
+                )
+                self.joint_ids.append(pybullet.getJointInfo(self.robot_id, ji)[0])
 
         pybullet.setJointMotorControlArray(
             self.robot_id,
@@ -167,15 +189,15 @@ class PybulletConnector(SimulationConnector):
             force = np.zeros(6)
             force[:3] = (
                 normal_force * np.array(contact_normal)
-                + lateral_friction_force_1 *
-                np.array(lateral_friction_direction_1)
-                + lateral_friction_force_2 *
-                np.array(lateral_friction_direction_2)
+                + lateral_friction_force_1 * np.array(lateral_friction_direction_1)
+                + lateral_friction_force_2 * np.array(lateral_friction_direction_2)
             )
             contact_forces.append(force)
 
-        self.reading = {name: self.end_effector_ids[j] in bodies_in_contact for j, name in enumerate(
-            self.touch_sensors)}
+        self.reading = {
+            name: self.end_effector_ids[j] in bodies_in_contact
+            for j, name in enumerate(self.touch_sensors)
+        }
 
         return self.reading
 
@@ -188,31 +210,30 @@ class PybulletConnector(SimulationConnector):
         ).reshape((3, 3))
         base_linvel, base_angvel = pybullet.getBaseVelocity(self.robot_id)
 
-        imu_linacc = (
-            np.cross(
-                base_angvel,
-                np.cross(base_angvel, rot_base_to_world @ self.r_base_to_imu),
-            )
+        imu_linacc = np.cross(
+            base_angvel,
+            np.cross(base_angvel, rot_base_to_world @ self.r_base_to_imu),
         )
 
-        return (base_inertia_quat,
-                self.rot_base_to_imu.dot(
-                    rot_base_to_world.T.dot(np.array(base_angvel))),
-                self.rot_base_to_imu.dot(
-                    rot_base_to_world.T.dot(imu_linacc + np.array([0.0, 0.0, 9.81]))))
+        return (
+            base_inertia_quat,
+            self.rot_base_to_imu.dot(rot_base_to_world.T.dot(np.array(base_angvel))),
+            self.rot_base_to_imu.dot(
+                rot_base_to_world.T.dot(imu_linacc + np.array([0.0, 0.0, 9.81]))
+            ),
+        )
 
     def get_sensor_readings(self):
         q, gyro, accel = self.imu_sensor()
-        return {"attitude": [q[3], q[0], q[1], q[2]],
-                "imu": (gyro,
-                        accel), "touch": self.contact_sensors()}
+        return {
+            "attitude": [q[3], q[0], q[1], q[2]],
+            "imu": (gyro, accel),
+            "touch": self.contact_sensors(),
+        }
 
     def set_torques(self, torques):
         pybullet.setJointMotorControlArray(
-            self.robot_id,
-            self.joint_ids,
-            pybullet.TORQUE_CONTROL,
-            forces=torques
+            self.robot_id, self.joint_ids, pybullet.TORQUE_CONTROL, forces=torques
         )
 
     def step(self):
@@ -227,20 +248,33 @@ class PybulletConnector(SimulationConnector):
 
 
 class MujocoConnector(SimulationConnector):
-    def __init__(self, robot_version, logger, use_gui=True, start_paused=False, fixed=False, pos=[0, 0, 0.4], rpy=[0.0, 0.0, 0.0]) -> None:
+    def __init__(
+        self,
+        robot_version,
+        logger,
+        use_gui=True,
+        start_paused=False,
+        fixed=False,
+        pos=[0, 0, 0.4],
+        rpy=[0.0, 0.0, 0.0],
+    ) -> None:
         super().__init__(robot_version, logger)
-        self.model = mujoco.MjModel.from_xml_path(self.resources.mjcf_path)
+
+        xml_string = xacro.process(
+            self.resources.mjcf_path + ".xacro",
+            mappings={"environment": "", "resources_dir": self.resources.resources_dir},
+        )
+        self.model = mujoco.MjModel.from_xml_string(xml_string)
         self.model.opt.timestep = 1e-3
         self.data = mujoco.MjData(self.model)
         self.data.qpos[0:3] = pos
         mujoco.mju_euler2Quat(self.data.qpos[3:7], rpy, "XYZ")
-        self.data.qpos[7:] = 0
+        self.data.qpos[7:] = np.array([0.0,0.0, -1, 0.0, 0.0, -1, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0])
         self.data.qvel[:] = 0
         if fixed:
             self.model.body("base_link").jntnum = 0
-        self.joint_names = [self.model.joint(
-            i+1).name for i in range(self.model.nu)]
-        self.paused = start_paused
+        self.joint_names = [self.model.joint(i + 1).name for i in range(self.model.nu)]
+        self.paused = True
         self.use_gui = use_gui
         self.viewer = None
         self.running = True
@@ -248,10 +282,15 @@ class MujocoConnector(SimulationConnector):
         self.touch_sensors = ["fl", "fr", "hl", "hr"]
         if self.use_gui:
             self.viewer = mujoco.viewer.launch_passive(
-                self.model, self.data, show_left_ui=True, show_right_ui=False, key_callback=self.key_callback)
+                self.model,
+                self.data,
+                show_left_ui=True,
+                show_right_ui=False,
+                key_callback=self.key_callback,
+            )
 
     def key_callback(self, keycode):
-        if chr(keycode) == ' ':
+        if chr(keycode) == " ":
             self.paused = not self.paused
         elif keycode == 256:  # ESC
             self.running = False
@@ -265,11 +304,15 @@ class MujocoConnector(SimulationConnector):
             name = sensor + "_touch"
             reading[name] = self.data.sensor(name).data[0] > 0
         # qw, qx, qy, qz
-        return {"attitude": self.data.sensor("attitude").data,
-                "imu": (self.data.sensor("angular-velocity").data,
-                        self.data.sensor("linear-acceleration").data,
-                        self.data.sensor("magnetometer").data),
-                "touch": reading}
+        return {
+            "attitude": self.data.sensor("attitude").data,
+            "imu": (
+                self.data.sensor("angular-velocity").data,
+                self.data.sensor("linear-acceleration").data,
+                self.data.sensor("magnetometer").data,
+            ),
+            "touch": reading,
+        }
 
     def set_torques(self, torques):
         self.data.ctrl = torques
@@ -285,8 +328,7 @@ class MujocoConnector(SimulationConnector):
         mujoco.mj_step(self.model, self.data)
         if self.viewer:
             self.viewer.sync()
-        time_until_next_step = self.model.opt.timestep - \
-            (time.time() - step_start)
+        time_until_next_step = self.model.opt.timestep - (time.time() - step_start)
         if time_until_next_step > 0:
             time.sleep(time_until_next_step)
         return True
@@ -298,9 +340,8 @@ class MujocoConnector(SimulationConnector):
 class ConnectorNode(Node):
     def __init__(self):
         super().__init__("first_node")
-        self.declare_parameter('hardware', rclpy.Parameter.Type.STRING)
-        hardware = self.get_parameter(
-            'hardware').get_parameter_value().string_value
+        self.declare_parameter("hardware", rclpy.Parameter.Type.STRING)
+        hardware = self.get_parameter("hardware").get_parameter_value().string_value
         self.time_publisher = None
 
         self.twist_subscriber = self.create_subscription(
@@ -310,66 +351,78 @@ class ConnectorNode(Node):
         if hardware.lower() != "robot":
             self.time_publisher = self.create_publisher(Clock, "/clock", 10)
         self.clock = Clock()
-        self.declare_parameter('use_gui', True)
-        self.declare_parameter('start_paused', False)
-        self.declare_parameter('fixed', False)
-        self.declare_parameter('pos', [0.0, 0.0, 0.4])
-        self.declare_parameter('rpy', [0.0, 0.0, 0.0])
-        self.declare_parameter('robot_version', rclpy.Parameter.Type.STRING)
-        self.declare_parameter('task', rclpy.Parameter.Type.STRING)
-        self.declare_parameter('config', rclpy.Parameter.Type.STRING)
-        self.join_state_pub = self.create_publisher(
-            JointState, "/joint_states", 10)
+        self.declare_parameter("use_gui", True)
+        self.declare_parameter("start_paused", False)
+        self.declare_parameter("fixed", False)
+        self.declare_parameter("pos", [0.0, 0.0, 0.4])
+        self.declare_parameter("rpy", [0.0, 0.0, 0.0])
+        self.declare_parameter("robot_version", rclpy.Parameter.Type.STRING)
+        self.declare_parameter("task", rclpy.Parameter.Type.STRING)
+        self.declare_parameter("config", rclpy.Parameter.Type.STRING)
+        self.join_state_pub = self.create_publisher(JointState, "/joint_states", 10)
         self.tf_broadcaster = TransformBroadcaster(self)
-        robot_version = self.get_parameter(
-            'robot_version').get_parameter_value().string_value
-        task = self.get_parameter(
-            'task').get_parameter_value().string_value
+        robot_version = (
+            self.get_parameter("robot_version").get_parameter_value().string_value
+        )
+        task = self.get_parameter("task").get_parameter_value().string_value
 
         if hardware.lower() != "robot":
-            use_gui = self.get_parameter(
-                'use_gui').get_parameter_value().bool_value
-            start_paused = self.get_parameter(
-                'start_paused').get_parameter_value().bool_value
-            fixed = self.get_parameter(
-                'fixed').get_parameter_value().bool_value
-            pos = self.get_parameter(
-                'pos').get_parameter_value().double_array_value
-            rpy = self.get_parameter(
-                'rpy').get_parameter_value().double_array_value
-            if hardware.lower() == 'mujoco':
-                self.connector = MujocoConnector(robot_version, self.get_logger(),
-                                                 use_gui=use_gui, start_paused=start_paused, fixed=fixed, pos=pos, rpy=rpy)
-            elif hardware.lower() == 'pybullet':
+            use_gui = self.get_parameter("use_gui").get_parameter_value().bool_value
+            start_paused = (
+                self.get_parameter("start_paused").get_parameter_value().bool_value
+            )
+            fixed = self.get_parameter("fixed").get_parameter_value().bool_value
+            pos = self.get_parameter("pos").get_parameter_value().double_array_value
+            rpy = self.get_parameter("rpy").get_parameter_value().double_array_value
+            if hardware.lower() == "mujoco":
+                self.connector = MujocoConnector(
+                    robot_version,
+                    self.get_logger(),
+                    use_gui=use_gui,
+                    start_paused=start_paused,
+                    fixed=fixed,
+                    pos=pos,
+                    rpy=rpy,
+                )
+            elif hardware.lower() == "pybullet":
                 self.connector = PybulletConnector(
-                    robot_version, self.get_logger(), fixed=fixed, pos=pos, rpy=rpy)
+                    robot_version, self.get_logger(), fixed=fixed, pos=pos, rpy=rpy
+                )
         else:
-            self.connector = RobotConnector(robot_version,  self.get_logger())
+            self.connector = RobotConnector(robot_version, self.get_logger())
 
-        if task == 'joint_spline':
-            self.task = TaskJointSpline(self.connector.num_joints(),
-                                        robot_version, self.get_parameter('config').get_parameter_value().string_value)
-        elif task == 'robot_squat':
-            self.task = RobotMove(self.connector.num_joints(), robot_version, self.get_parameter(
-                'config').get_parameter_value().string_value, self.get_logger(), self.connector.dt)
-
-        else:
-            self.logger.error(
-                'Unknown task selected!!! Switching to joint_spline task!')
+        if task == "joint_spline":
             self.task = TaskJointSpline(
-                robot_version, "/home/ajsmilutin/solo/solo_ws/src/ftn_solo/config/controllers/eurobot_demo.yaml")
-            
+                self.connector.num_joints(),
+                robot_version,
+                self.get_parameter("config").get_parameter_value().string_value,
+            )
+        elif task == "robot_squat":
+            self.task = RobotMove(
+                self.connector.num_joints(),
+                robot_version,
+                self.get_parameter("config").get_parameter_value().string_value,
+                self.get_logger(),
+                self.connector.dt,
+            )
+
+        else:
+            self.get_logger().error(
+                "Unknown task selected!!! Switching to joint_spline task!"
+            )
+            self.task = TaskJointSpline(
+                robot_version,
+                "/home/ajsmilutin/solo/solo_ws/src/ftn_solo/config/controllers/eurobot_demo.yaml",
+            )
+
         self.task.dt = self.connector.dt
 
-        self.stop_thread = False 
+        self.stop_thread = False
         self.run_thread = threading.Thread(target=self.run)
         self.run_thread.start()
 
-    
     def cmd_vel_callback(self, msg):
         self.task.define_movement(msg)
-        
-
 
     def run(self):
         c = 0
@@ -386,8 +439,9 @@ class ConnectorNode(Node):
             else:
                 elapsed = (self.get_clock().now() - start).nanoseconds / 1e9
 
-            torques = self.task.compute_control(
-                elapsed, position, velocity, sensors)
+            start_time = time.time()
+            torques = self.task.compute_control(elapsed, position, velocity, sensors)
+            self.get_logger().info(f"Time: {time.time() - start_time}")
             self.connector.set_torques(torques)
             if self.time_publisher:
                 self.clock.clock.nanosec += int(self.connector.dt * 1000000000)
@@ -395,7 +449,7 @@ class ConnectorNode(Node):
                 self.clock.clock.nanosec = self.clock.clock.nanosec % 1000000000
                 self.time_publisher.publish(self.clock)
             c += 1
-            if (c % 50 == 0):
+            if c % 50 == 0:
                 if self.time_publisher:
                     joint_state.header.stamp = self.clock.clock
                 else:
@@ -433,5 +487,5 @@ def main(args=None):
         rclpy.shutdown()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

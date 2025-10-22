@@ -1,6 +1,5 @@
 import pinocchio as pin
 import numpy as np
-import casadi as cs
 from robot_properties_solo.solo12wrapper import Solo12Config
 
 
@@ -41,7 +40,7 @@ class PinocchioWrapper(object):
         self.k_max = 0.00000002
         self.J = np.zeros((6, 18))
         self.J_list=[]
-        self.max_tau = 10.0
+        self.max_tau = 2.5
 
 
     def moveSE3(self, R, T):
