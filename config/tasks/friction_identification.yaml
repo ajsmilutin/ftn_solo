@@ -1,0 +1,83 @@
+mujoco:
+  use_gui: true
+  start_paused: false
+  fixed: true
+  # environment: environments/plane.mjcf
+  environments_package: ftn_solo
+
+poses:
+  zero_pose:
+    [ 0.0, 0.0, 0.0,
+      0.0, 0.0, 0.0,
+      0.0, 0.0, 0.0,
+      0.0, 0.0, 0.0]
+  hip_fe_ident:
+    [ 0.0, 0.0, -2.8,
+      0.0, 0.0, -2.8,
+      0.0, 0.0, 2.8,
+      0.0, 0.0, 2.8]
+  hip_aa_ident:
+    [ 0.0, -0.785, -2.8,
+      0.0, -0.785, -2.8,
+      0.0, 0.785, 2.8,
+      0.0, 0.785, 2.8]
+chirp_gains:
+  zero_pose:
+    [ 0.0, 0.0, 0.0,
+      0.0, 0.0, 0.0,
+      0.0, 0.0, 0.0,
+      0.0, 0.0, 0.0]
+  knee_ident:
+    [ 0.0, 0.0, -0.3,
+      0.0, 0.0, -0.15,
+      0.0, 0.0, 0.15,
+      0.0, 0.0, 0.20]
+  hip_fe_ident:
+    [ 0.0, -0.15, 0.0,
+      0.0, -0.15, 0.0,
+      0.0, 0.20, 0.0,
+      0.0, 0.15, 0.0]
+  hip_aa_ident:
+    [ 0.10, 0.0, 0.0,
+      -0.10, 0.0, 0.0,
+      0.15, 0.0, 0.0,
+      -0.15, 0.0, 0.0]
+on_start:
+  type: "spline"
+  poses: ["zero_pose"]
+  durations: [1.0]
+
+sequence:
+  - type: "chirp"
+    chirp: "knee_ident"
+    duration: 5.0
+  - type: "spline"
+    poses: ["hip_fe_ident"]
+    durations: [2.0]
+  - type: "chirp"
+    chirp: "hip_fe_ident"
+    duration: 5.0
+  - type: "spline"
+    poses: ["hip_aa_ident"]
+    durations: [2.0]
+  - type: "chirp"
+    chirp: "hip_aa_ident"
+    duration: 5.0
+  - type: "spline"
+    poses: ["zero_pose"]
+    durations: [2.0]
+
+joint_controller:
+  Kp : 8.0
+  Kd : 0.05
+  B : 0.0
+  Fv: 0.0
+  sigma: 1.0
+  max_control: 1.8
+
+
+chirp_torque:
+  F0: 1.0
+  F1: 2.5
+
+log_file: "ident_log.csv"

@@ -8,7 +8,6 @@ from visualization_msgs.msg import MarkerArray, Marker
 from std_msgs.msg import ColorRGBA
 from ftn_solo.utils.conversions import ToPoint
 from ftn_solo.utils.trajectories import SplineData
-from ftn_solo_control import FixedRobotEstimator
 from ftn_solo.controllers import PDWithFrictionAndGravityCompensation
 
 
@@ -34,10 +33,6 @@ class TaskJointSpline(TaskWithInitPose):
         self.machine.on_enter_follow_spline(self.compute_spline)
         self.node = Node("node")
         self.publisher = self.node.create_publisher(MarkerArray, "markers", 1)
-        self.estimator = FixedRobotEstimator(
-            0.001, self.robot.pin_robot.model, self.robot.pin_robot.data, True, np.array([                                                                                         0, 0, 0.4]), np.eye(3)
-        )
-
 
     def compute_spline(self, t, q, qv):
         self.compute_trajectory(t, self.last_pose, self.loop[self.loop_phase])

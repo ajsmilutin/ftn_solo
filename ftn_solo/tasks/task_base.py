@@ -4,8 +4,10 @@ from ftn_solo.utils.trajectories import SplineData
 from ftn_solo.controllers import PDWithFrictionCompensation
 import numpy as np
 from robot_properties_solo import Solo12Robot
+from ftn_solo_control import FixedRobotEstimator
 
-class TaskBase():
+
+class TaskBase:
     def __init__(self, num_joints, robot_type, yaml_config) -> None:
         self.config = yaml_config
         self.num_joints = num_joints
@@ -27,7 +29,10 @@ class TaskWithInitPose(TaskBase):
             self.config["on_start"], self.num_joints, self.poses)
         self.step = 0
         self.joint_controller = PDWithFrictionCompensation(
-            self.robot.pin_robot, self.config["joint_controller"])
+            self.robot.pin_robot, self.config["joint_controller"]
+        )
+        self.estimator = FixedRobotEstimator(
+            0.001, self.robot.pin_robot.model, self.robot.pin_robot.data, True, np.array([0, 0, 0.4]), np.eye(3))
 
     def parse_poses(self, poses):
         self.poses = {}
@@ -38,7 +43,7 @@ class TaskWithInitPose(TaskBase):
     def init_pose(self, q, qv):
         self.compute_trajectory(0, q, self.on_start)
 
-    def compute_trajectory(self, tstart, q,  sequence):
+    def compute_trajectory(self, tstart, q, sequence):
         self.transition_end = tstart + sequence.durations[-1]
         self.trajectory = SplineTrajectory(False)
         self.trajectory.add(q, 0)
@@ -48,8 +53,10 @@ class TaskWithInitPose(TaskBase):
         self.last_pose = sequence.poses[-1, :]
 
     def following_spline(self, t, q, qv):
-        self.ref_position, self.ref_velocity,  self.ref_acceleration = self.trajectory.get(
-            t)
+        self.ref_position, self.ref_velocity, self.ref_acceleration = (
+            self.trajectory.get(t)
+        )
         self.control = self.joint_controller.compute_control(
-            self.ref_position, self.ref_velocity, self.ref_acceleration, q, qv)
+            self.ref_position, self.ref_velocity, self.ref_acceleration, q, qv
+        )
         return t >= self.transition_end
