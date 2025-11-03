@@ -61,3 +61,15 @@ ros2 launch ftn_solo robot_launch.py hardware:=mujoco task:=move_base config:=up
 ```
 And you should be able to see something like this:
 ![Mujoco starting up](images/mujoco_and_solo.gif)
+
+
+```
+ros2 launch ftn_solo robot_launch.py task:=move_base config:=crawl_demo.yaml hardware:=mujoco
+
+ros2 launch ftn_solo robot_launch.py task:=move_base config:=up_wall.yaml hardware:=mujoco
+
+ros2 launch ftn_solo robot_launch.py task:=draw_shapes config:=draw_shapes.yaml hardware:=mujoco
+
+ros2 launch ftn_solo robot_launch.py task:=joint_spline config:=eurobot_demo.yaml hardware:=mujoco
+
+```

@@ -1,8 +1,6 @@
 from transitions import Machine
 import numpy as np
 from .task_base import TaskWithInitPose
-from ftn_solo.controllers import PDWithFrictionCompensation
-from robot_properties_solo import Solo12Robot
 import pinocchio as pin
 from rclpy.node import Node
 from rclpy import spin_once
@@ -11,10 +9,8 @@ from geometry_msgs.msg import PoseArray, Pose
 from std_msgs.msg import ColorRGBA, String
 from ftn_solo.utils.conversions import ToPoint, ToQuaternion
 from scipy.special import erf
-from ftn_solo.utils.trajectories import get_trajectory_marker, SplineData
 from sensor_msgs.msg import Joy
 from tf2_ros import TransformBroadcaster
-from threading import Thread
 import yaml
 
 from ftn_solo_control import (
@@ -56,7 +52,8 @@ class EEFMotionData(MotionData):
         super().__init__(config)
         self.eef_index = config["eef"]
         quaternion = (
-            config["orientation"] if "orientation" in config else [0.0, 0.0, 0.0, 1.0]
+            config["orientation"] if "orientation" in config else [
+                0.0, 0.0, 0.0, 1.0]
         )
         self.rotation = pin.XYZQUATToSE3(
             self.positions[0].tolist() + quaternion
@@ -96,8 +93,7 @@ class PlaybackControl:
 
     def __init__(self):
         self.machine = Machine(
-            model=self, states=PlaybackControl.states, initial="running"
-        )
+            model=self, states=PlaybackControl.states, initial="running")
         self.machine.add_transition("start", "stopped", "running")
         self.machine.add_transition("start", "one_step", "running")
         self.machine.add_transition("stop", "running", "stopped")
@@ -139,7 +135,8 @@ class TaskMoveBase(TaskWithInitPose):
 
     def __init__(self, num_joints, robot_type, config_yaml) -> None:
         super().__init__(num_joints, robot_type, config_yaml)
-        self.machine = Machine(model=self, states=TaskMoveBase.states, initial="start")
+        self.machine = Machine(
+            model=self, states=TaskMoveBase.states, initial="start")
 
         self.machine.add_transition(
             "tick", "start", "move_base", conditions="following_spline"
@@ -161,8 +158,10 @@ class TaskMoveBase(TaskWithInitPose):
         self.estimator = None
         self.trajectory_planner = None
         self.publisher = self.node.create_publisher(MarkerArray, "markers", 10)
-        self.status_publisher = self.node.create_publisher(String, "status", 10)
-        self.pose_publisher = self.node.create_publisher(PoseArray, "origin_pose", 10)
+        self.status_publisher = self.node.create_publisher(
+            String, "status", 10)
+        self.pose_publisher = self.node.create_publisher(
+            PoseArray, "origin_pose", 10)
         self.tf_broadcaster = TransformBroadcaster(self.node)
         self.base_index = self.robot.pin_robot.model.getFrameId("base_link")
         self.initialized = False
@@ -239,11 +238,13 @@ class TaskMoveBase(TaskWithInitPose):
 
     def get_new_origin(self, friction_cones):
         if len(friction_cones) == 4:
-            x = np.copy(friction_cones[self.robot.end_eff_ids[0]].get_position())
+            x = np.copy(
+                friction_cones[self.robot.end_eff_ids[0]].get_position())
             x = x + friction_cones[self.robot.end_eff_ids[1]].get_position()
             x = x - friction_cones[self.robot.end_eff_ids[2]].get_position()
             x = x - friction_cones[self.robot.end_eff_ids[3]].get_position()
-            y = np.copy(friction_cones[self.robot.end_eff_ids[0]].get_position())
+            y = np.copy(
+                friction_cones[self.robot.end_eff_ids[0]].get_position())
             y = y - friction_cones[self.robot.end_eff_ids[1]].get_position()
             y = y + friction_cones[self.robot.end_eff_ids[2]].get_position()
             y = y - friction_cones[self.robot.end_eff_ids[3]].get_position()
@@ -253,20 +254,24 @@ class TaskMoveBase(TaskWithInitPose):
                 and self.robot.end_eff_ids[2] in friction_cones
             ):
                 x = friction_cones[self.robot.end_eff_ids[0]].get_position()
-                x = x - friction_cones[self.robot.end_eff_ids[2]].get_position()
+                x = x - \
+                    friction_cones[self.robot.end_eff_ids[2]].get_position()
             else:
                 x = friction_cones[self.robot.end_eff_ids[1]].get_position()
-                x = x - friction_cones[self.robot.end_eff_ids[3]].get_position()
+                x = x - \
+                    friction_cones[self.robot.end_eff_ids[3]].get_position()
 
             if (
                 self.robot.end_eff_ids[0] in friction_cones
                 and self.robot.end_eff_ids[1] in friction_cones
             ):
                 y = friction_cones[self.robot.end_eff_ids[0]].get_position()
-                y = y - friction_cones[self.robot.end_eff_ids[1]].get_position()
+                y = y - \
+                    friction_cones[self.robot.end_eff_ids[1]].get_position()
             else:
                 y = friction_cones[self.robot.end_eff_ids[2]].get_position()
-                y = y - friction_cones[self.robot.end_eff_ids[3]].get_position()
+                y = y - \
+                    friction_cones[self.robot.end_eff_ids[3]].get_position()
 
         origin = np.zeros(3)
         for cone in friction_cones:
@@ -326,23 +331,28 @@ class TaskMoveBase(TaskWithInitPose):
                     motion.eef_index,
                     np.array([True, True, True], dtype=bool),
                     pin.SE3.Identity(),
-                    1500,
-                    20,
+                    400,
+                    5,
                 )
                 eef_trajectory = SplineTrajectory(True)
                 position = self.robot.pin_robot.data.oMf[motion.eef_index].translation
                 eef_trajectory.add(position, 0)
                 radius = 0.018
                 if len(motion.positions) == 1:
-                    end_position = motion.positions[-1] + radius * motion.rotation[:, 2]
+                    end_position = motion.positions[-1] + \
+                        radius * motion.rotation[:, 2]
                     seventy_five = 0.2 * position + 0.8 * end_position
                     seventy_five = seventy_five + 0.1 * motion.rotation[:, 2]
-                    eef_trajectory.add(seventy_five, 0.75 * motion.times[0] * duration)
-                    eef_trajectory.add(end_position, motion.times[0] * duration)
+                    eef_trajectory.add(seventy_five, 0.75 *
+                                       motion.times[0] * duration)
+                    eef_trajectory.add(
+                        end_position, motion.times[0] * duration)
                 else:
                     for i, position in enumerate(motion.positions):
-                        end_position = position + radius * motion.rotation[:, 2]
-                        eef_trajectory.add(end_position, motion.times[i] * duration)
+                        end_position = position + \
+                            radius * motion.rotation[:, 2]
+                        eef_trajectory.add(
+                            end_position, motion.times[i] * duration)
                 eef_trajectory.set_start(t)
                 eef_motion.set_trajectory(eef_trajectory)
                 self.end_times[motion.eef_index] = eef_trajectory.end_time()
@@ -401,7 +411,8 @@ class TaskMoveBase(TaskWithInitPose):
                     self.can_step = True
                     self.playback_controller.step()
             elif not self.estimator:
-                self.status_publisher.publish(String(data="Creating estimator"))
+                self.status_publisher.publish(
+                    String(data="Creating estimator"))
                 self.estimator = FixedPointsEstimator(
                     0.001,
                     self.robot.pin_robot.model,
@@ -579,7 +590,8 @@ class TaskMoveBase(TaskWithInitPose):
     def check_joints(self, t):
         joints_finished = True
         for motion in self.joint_motions:
-            joints_finished = joints_finished and (t > motion.trajectory.end_time())
+            joints_finished = joints_finished and (
+                t > motion.trajectory.end_time())
         return joints_finished
 
     def check_contacts(self, t):
@@ -616,8 +628,8 @@ class TaskMoveBase(TaskWithInitPose):
             )
             tau = self.robot.pin_robot.data.nle[6:] - self.control
             f = np.matmul(
-                np.linalg.inv(jacobian[0:3, joint + 2 : joint + 5]).T,
-                tau[joint - 4 : joint - 1],
+                np.linalg.inv(jacobian[0:3, joint + 2: joint + 5]).T,
+                tau[joint - 4: joint - 1],
             )
             sigma_t = 0.5 * np.sqrt(2)
 
@@ -652,7 +664,8 @@ class TaskMoveBase(TaskWithInitPose):
                 marker.scale.x = 0.02
                 marker.scale.y = 0.02
                 marker.scale.z = 0.02
-                marker.pose.position = ToPoint(self.robot.pin_robot.data.com[0])
+                marker.pose.position = ToPoint(
+                    self.robot.pin_robot.data.com[0])
                 marker.pose.position.z = 0.0
                 marker.id = 100
                 marker_array.markers.append(marker)

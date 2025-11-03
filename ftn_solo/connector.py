@@ -104,8 +104,14 @@ class SimulationConnector(Connector):
     def __init__(self, robot_version, logger, *args, **kwargs) -> None:
         super().__init__(robot_version, logger, *args, **kwargs)
 
-        self.simulate_encoders = self.config.get(
-            "simulation") and self.config["simulation"].get("simulate_encoders", False)
+        self.simulate_encoders = False
+        self.initial_pose = None
+        simulation_config = self.config.get("simulation")
+        if self.config.get("simulation"):
+            self.simulate_encoders = simulation_config.get(
+                "simulate_encoders", False)
+            self.initial_pose = simulation_config.get("initial_pose", None)
+
         if self.simulate_encoders:
             self.resolution = (2 * math.pi / self.config["robot"]["joint_modules"]
                                ["counts_per_revolution"] / self.config["robot"]["joint_modules"]["gear_ratios"])
@@ -260,7 +266,8 @@ class MujocoConnector(SimulationConnector):
         self.data.qpos[0:3] = pos
         mujoco.mju_euler2Quat(self.data.qpos[3:7], rpy, "XYZ")
         self.data.qpos[7:] = 0
-
+        if self.initial_pose is not None:
+            self.data.qpos[7:] = self.initial_pose
         self.data.qvel[:] = 0
         self.joint_names = [self.model.joint(
             i + 1).name for i in range(self.model.nu)]
