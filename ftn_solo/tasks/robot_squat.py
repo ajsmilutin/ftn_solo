@@ -59,8 +59,8 @@ class RobotMove(TaskBase):
         self.current_off_rot = 0.0
         
         # Separate ramp durations for acceleration and deceleration
-        self.ramp_duration_accel = 1.0   # Time to accelerate (seconds)
-        self.ramp_duration_decel = 1.5    # Time to decelerate (seconds) - can be longer for smoother stops
+        self.ramp_duration_accel = 1.5   # Time to accelerate (seconds)
+        self.ramp_duration_decel = 2.5    # Time to decelerate (seconds) - can be longer for smoother stops
         
         self.ramp_start_time_x = 0.0
         self.ramp_start_time_y = 0.0
@@ -113,9 +113,9 @@ class RobotMove(TaskBase):
             self.backwards = self.backwards_x or self.backwards_y or self.backwards_rot
             
             # Set target offsets for each direction
-            self.target_off_x = np.clip(abs(msg.linear.x), 0.0, 0.03) if self.move_x else 0.0
-            self.target_off_y = np.clip(abs(msg.linear.y), 0.0, 0.02) if self.move_y else 0.0
-            self.target_off_rot = np.clip(abs(msg.angular.z), 0.0, 0.02) if self.rotate else 0.0
+            self.target_off_x = np.clip(abs(msg.linear.x), 0.0, 0.1) if self.move_x else 0.0
+            self.target_off_y = np.clip(abs(msg.linear.y), 0.0, 0.1) if self.move_y else 0.0
+            self.target_off_rot = np.clip(abs(msg.angular.z), 0.0, 0.1) if self.rotate else 0.0
             
             # Start ramping for X axis
             if self.target_off_x != self.current_off_x:
@@ -229,22 +229,17 @@ class RobotMove(TaskBase):
     def define_splines(self, off_x, off_y, off_rot):
         t_arc_points = np.array([0, 0.5, 1])
         
-        # Determine which offset to use for Y based on movement type
-        # Priority: rotation > lateral movement
-        if off_rot > 0.001:  # Use rotation offset if rotating
-            effective_off_y = off_rot
-            use_rotation_pattern = True
-        else:  # Use lateral offset if not rotating
-            effective_off_y = off_y
-            use_rotation_pattern = False
+        # Use rotation for Y if rotating, otherwise use lateral
+        if self.rotate:
+            off_y = off_rot
         
         # X direction splines
         front_x = np.array([0.196-off_x, 0.196, 0.196+off_x])
         back_x = np.array([0.196+off_x, 0.196, 0.196-off_x])
         
-        # Y direction splines - use smaller offsets for lateral movement
-        front_y = np.array([0.1469-effective_off_y, 0.1469, 0.1469+effective_off_y])
-        back_y = np.array([0.1469+effective_off_y, 0.1469, 0.1469-effective_off_y])
+        # Y direction splines
+        front_y = np.array([0.1469-off_y, 0.1469, 0.1469+off_y])
+        back_y = np.array([0.1469+off_y, 0.1469, 0.1469-off_y])
         
         # Z direction (height) splines
         zarc = np.array([-0.20, -0.15, -0.20])  # Arc has foot clearance
@@ -256,7 +251,6 @@ class RobotMove(TaskBase):
         
         for leg in self.splines.keys():
             # X movement splines
-           
             if leg == "FL" or leg == "FR":  # Front legs
                 x_arc = x_f
                 x_line = x_b
@@ -264,10 +258,16 @@ class RobotMove(TaskBase):
                 x_arc = -x_b
                 x_line = -x_f
         
-    
-            # Y movement pattern depends on whether we're rotating or moving laterally
-            if use_rotation_pattern:
-                # Rotation pattern
+            # Y movement pattern
+            if leg == "FR" or leg == "HR":  # Right legs
+                y_arc = -y_f
+                y_line = -y_b
+            else:  # Left legs
+                y_arc = y_b
+                y_line = y_f
+            
+            # Rotation movement adjustments
+            if self.rotate:
                 if leg == "HR" or leg == "FL":
                     y_arc = y_f
                     y_line = y_b
@@ -277,15 +277,7 @@ class RobotMove(TaskBase):
 
                 if leg == "FR" or leg == "HR":
                     y_arc = -y_arc
-                    y_line = -y_line
-            else:
-                # Lateral movement pattern
-                if leg == "FR" or leg == "HR":  # Right legs
-                    y_arc = -y_f
-                    y_line = -y_b
-                else:  # Left legs
-                    y_arc = y_b
-                    y_line = y_f 
+                    y_line = -y_line 
             
             # Create splines for all directions
             self.splines[leg]["arc"]["x"] = CubicSpline(t_arc_points, x_arc)
@@ -378,8 +370,9 @@ class RobotMove(TaskBase):
                np.array([x_acc, y_acc, z_acc])
 
     def compute_control(self, t, position, velocity, sensors):
-        # Update velocity ramping every control cycle
-        self.update_velocity_ramp()
+        # Update velocity ramping only if actively ramping
+        if self.ramping_x or self.ramping_y or self.ramping_rot:
+            self.update_velocity_ramp()
         
         # Update phase based on time delta and current T
         if self.start:
@@ -392,7 +385,7 @@ class RobotMove(TaskBase):
             self.last_t = t
         
         if self.off==0:
-            if time.time() - self.off_time > 5:
+            if time.time() - self.off_time > 3:
                 # self.recovery_pose()
                 self.start = False
         
