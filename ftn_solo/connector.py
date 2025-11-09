@@ -9,7 +9,8 @@ from rclpy.node import Node
 from sensor_msgs.msg import JointState
 import numpy as np
 from rosgraph_msgs.msg import Clock
-from geometry_msgs.msg import Twist
+from geometry_msgs.msg import Twist, TwistStamped
+from sensor_msgs.msg import Imu
 import time
 import math
 import yaml
@@ -306,6 +307,10 @@ class ConnectorNode(Node):
         self.twist_subscriber = self.create_subscription(
             Twist, "/cmd_vel", self.cmd_vel_callback, 10
         )
+        
+        # Publishers for odometry and IMU
+        self.twist_publisher = self.create_publisher(TwistStamped, "/robot/velocity", 10)
+        self.imu_publisher = self.create_publisher(Imu, "/robot/imu", 10)
 
         if hardware.lower() != "robot":
             self.time_publisher = self.create_publisher(Clock, "/clock", 10)
@@ -351,7 +356,8 @@ class ConnectorNode(Node):
                                         robot_version, self.get_parameter('config').get_parameter_value().string_value)
         elif task == 'robot_squat':
             self.task = RobotMove(self.connector.num_joints(), robot_version, self.get_parameter(
-                'config').get_parameter_value().string_value, self.get_logger(), self.connector.dt)
+                'config').get_parameter_value().string_value, self.get_logger(), self.connector.dt,
+                self.twist_publisher, self.imu_publisher)
 
         else:
             self.logger.error(
@@ -365,6 +371,83 @@ class ConnectorNode(Node):
         self.run_thread = threading.Thread(target=self.run)
         self.run_thread.start()
 
+    def publish_velocity_and_imu(self, velocity, sensors):
+        """Publish robot base velocity and IMU data"""
+        # Get timestamp
+        if self.time_publisher:
+            stamp = self.clock.clock
+        else:
+            stamp = self.get_clock().now().to_msg()
+        
+        # Publish Twist (base velocity)
+        twist_msg = TwistStamped()
+        twist_msg.header.stamp = stamp
+        twist_msg.header.frame_id = "base_link"
+        
+        # Get base velocity from connector (qvel[0:6] contains base velocity)
+        # qvel[0:3] = linear velocity (x, y, z)
+        # qvel[3:6] = angular velocity (wx, wy, wz)
+        if hasattr(self.connector, 'data') and hasattr(self.connector.data, 'qvel'):
+            # Mujoco/PyBullet: base velocity is in qvel[0:6]
+            twist_msg.twist.linear.x = float(self.connector.data.qvel[0])
+            twist_msg.twist.linear.y = float(self.connector.data.qvel[1])
+            twist_msg.twist.linear.z = float(self.connector.data.qvel[2])
+            twist_msg.twist.angular.x = float(self.connector.data.qvel[3])
+            twist_msg.twist.angular.y = float(self.connector.data.qvel[4])
+            twist_msg.twist.angular.z = float(self.connector.data.qvel[5])
+        else:
+            # Robot hardware: compute from joint velocities or set to zero
+            twist_msg.twist.linear.x = 0.0
+            twist_msg.twist.linear.y = 0.0
+            twist_msg.twist.linear.z = 0.0
+            twist_msg.twist.angular.x = 0.0
+            twist_msg.twist.angular.y = 0.0
+            twist_msg.twist.angular.z = 0.0
+        
+        self.twist_publisher.publish(twist_msg)
+        
+        # Publish IMU data
+        imu_msg = Imu()
+        imu_msg.header.stamp = stamp
+        imu_msg.header.frame_id = "imu_link"
+        
+        # Orientation from sensors (quaternion)
+        if 'attitude' in sensors and sensors['attitude'] is not None:
+            # Mujoco provides quaternion as [w, x, y, z]
+            imu_msg.orientation.w = sensors['attitude'][0]
+            imu_msg.orientation.x = sensors['attitude'][1]
+            imu_msg.orientation.y = sensors['attitude'][2]
+            imu_msg.orientation.z = sensors['attitude'][3]
+        else:
+            # Default orientation (no rotation)
+            imu_msg.orientation.w = 1.0
+            imu_msg.orientation.x = 0.0
+            imu_msg.orientation.y = 0.0
+            imu_msg.orientation.z = 0.0
+        
+        # Angular velocity and linear acceleration from IMU
+        if 'imu' in sensors and sensors['imu'] is not None:
+            angular_vel, linear_accel, _ = sensors['imu']
+            
+            # Angular velocity
+            imu_msg.angular_velocity.x = angular_vel[0]
+            imu_msg.angular_velocity.y = angular_vel[1]
+            imu_msg.angular_velocity.z = angular_vel[2]
+            
+            # Linear acceleration
+            imu_msg.linear_acceleration.x = linear_accel[0]
+            imu_msg.linear_acceleration.y = linear_accel[1]
+            imu_msg.linear_acceleration.z = linear_accel[2]
+        else:
+            # Default values
+            imu_msg.angular_velocity.x = 0.0
+            imu_msg.angular_velocity.y = 0.0
+            imu_msg.angular_velocity.z = 0.0
+            imu_msg.linear_acceleration.x = 0.0
+            imu_msg.linear_acceleration.y = 0.0
+            imu_msg.linear_acceleration.z = 9.81  # Gravity
+        
+        self.imu_publisher.publish(imu_msg)
     
     def cmd_vel_callback(self, msg):
         self.task.define_movement(msg)
@@ -389,6 +472,10 @@ class ConnectorNode(Node):
             torques = self.task.compute_control(
                 elapsed, position, velocity, sensors)
             self.connector.set_torques(torques)
+            
+            # Publish velocity and IMU data
+            self.publish_velocity_and_imu(velocity, sensors)
+            
             if self.time_publisher:
                 self.clock.clock.nanosec += int(self.connector.dt * 1000000000)
                 self.clock.clock.sec += self.clock.clock.nanosec // 1000000000
