@@ -68,7 +68,26 @@ def launch_setup(context, *args, **kwargs):
                     "config": config
                 }
             ],
-            output="log"
+            output="screen"
+        ),
+        Node(
+            package="ftn_solo",
+            executable="joystick_node",
+            name="joystick_node",
+            output="screen"
+        ),
+        Node(
+            package='joy',
+            executable='joy_node',
+            name='joy_node',
+            parameters=[
+                {
+                    'dev': '/dev/input/js0',  
+                    'deadzone': 0.05,        
+                    'autorepeat_rate': 20.0  
+                }
+            ],
+            output='screen'
         ),
     ]
 
