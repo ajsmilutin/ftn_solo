@@ -3,7 +3,7 @@ from ftn_solo_control import SplineTrajectory
 from ftn_solo.utils.trajectories import SplineData
 from ftn_solo.controllers import PDWithFrictionCompensation
 import numpy as np
-from robot_properties_solo import Solo12Robot
+from robot_properties_solo import Solo12Robot, UnitreeGo2Robot, AnymalRobot
 from ftn_solo_control import FixedRobotEstimator
 
 
@@ -22,8 +22,12 @@ class TaskWithInitPose(TaskBase):
         super().__init__(num_joints, robot_type, yaml_config)
         if robot_type == "solo12":
             self.robot = Solo12Robot()
+        elif robot_type == "unitree_go2":
+            self.robot = UnitreeGo2Robot()
+        elif robot_type == "anymal":
+            self.robot = AnymalRobot()
         else:
-            raise ("Only solo12 supported")
+            raise ("Only solo12, unitree_go2 and anymal supported")
         self.parse_poses(self.config["poses"])
         self.on_start = SplineData(
             self.config["on_start"], self.num_joints, self.poses)

@@ -1,0 +1,123 @@
+mujoco:
+  use_gui: true
+  start_paused: false
+  fixed: false
+  environment: environments/big_vertical_walls.mjcf
+  environments_package: ftn_solo
+
+poses:
+  zero_pose: [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 ]
+  initial_pose: [ -0.1, 0.985, -1.57, 
+                   0.1, 0.985, -1.57, 
+                  -0.1, -0.985, 1.57, 
+                   0.1, -0.985, 1.57 ]
+on_start:
+  poses: [ "initial_pose" ]
+  durations: [ 2.0 ]
+
+crawl:
+- motions:
+  - eef: 22
+    position: [ 0.75, 0.225, 0.10 ]
+    orientation: [0.0,  -0.707, 0,  0.707 ] # x, y, z, w
+    times: [ 0.5 ]
+  duration: 5.0
+
+- motions:
+  - eef: 82
+    position: [ -0.75, -0.225, 0.10 ]
+    orientation: [0.0,  0.707, 0,  0.707 ] # x, y, z, w
+    times: [ 0.5 ]
+  duration: 5.0
+  torso_height: 0.4
+
+- motions:
+  - eef: 42
+    position: [ 0.75, -0.225, 0.15 ]
+    orientation: [0.0,  -0.707, 0,  0.707 ] # x, y, z, w
+    times: [ 0.5 ]
+  duration: 5.0  
+  torso_height: 0.38
+
+- motions:
+  - eef: 62
+    position: [ -0.75, 0.225, 0.2 ]
+    orientation: [0.0,  0.707, 0,  0.707 ] # x, y, z, w
+    times: [ 0.5 ]
+  duration: 5.0
+  torso_height: 0.36
+
+- motions:
+  - eef: 22
+    position: [ 0.75, 0.225, 0.25 ]
+    orientation: [0.0,  -0.707, 0,  0.707 ] # x, y, z, w
+    times: [ 0.5 ]
+  duration: 5.0
+
+- motions:
+  - eef: 82
+    position: [ -0.75, -0.225, 0.30 ]
+    orientation: [0.0,  0.707, 0,  0.707 ] # x, y, z, w
+    times: [ 0.5 ]
+  duration: 5.0
+  torso_height: 0.4
+
+- motions:
+  - eef: 42
+    position: [ 0.75, -0.225, 0.35 ]
+    orientation: [0.0,  -0.707, 0,  0.707 ] # x, y, z, w
+    times: [ 0.5 ]
+  duration: 5.0  
+  torso_height: 0.36
+
+- motions:
+  - eef: 62
+    position: [ -0.75, 0.225, 0.40 ]
+    orientation: [0.0,  0.707, 0,  0.707 ] # x, y, z, w
+    times: [ 0.5 ]
+  duration: 5.0
+  torso_height: 0.36
+
+
+- motions: []
+  duration: 5.0
+
+- motions: []
+  duration: 5.0
+
+max_torque: 80.0
+torso_height: 0.42
+
+joint_controller:
+  Kp: [240.0, 120.0, 120.0, 240.0, 120.0, 120.0, 240.0, 120.0, 120.0, 240.0, 120.0, 120.0]
+  Kd: 5
+  B: 0.0
+  Fv: 0.0
+  sigma: 0.05
+  max_control: 80.0
+
+whole_body:  
+  B: 0.0
+  Fv: 0.0
+  sigma: 0.05
+  lambda_tangential: 0.001
+  lambda_torque: 0.001
+  lambda_kd: 0.001
+  smooth: 0.8
+  force_margin: 3.0
+
+trajectory_planner:
+  com_lower_margin: 0.06
+  com_upper_margin: 0.08
+  COM:
+    Kp: 1200.5
+    Kd: 50.0
+  base_linear:
+    Kp: 5000.0
+    Kd: 10.0
+  base_angular:
+    Kp: 1000
+    Kd: 10.0
+  eef_position:
+    Kp: 1500.0
+    Kd: 20.0

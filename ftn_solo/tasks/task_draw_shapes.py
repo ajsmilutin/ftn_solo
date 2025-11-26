@@ -117,7 +117,7 @@ class TaskDrawShapes(TaskWithInitPose):
         if not self.estimator.initialized():
             self.estimator.init(t, q, qv, sensors)
         self.estimator.estimate(t, q, qv, sensors)
-        self.robot.forward_robot(
+        self.robot.update_pinocchio(
             self.estimator.estimated_q, self.estimator.estimated_qv
         )
         pin.crba(

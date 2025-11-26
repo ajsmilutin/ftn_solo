@@ -450,13 +450,8 @@ class ConnectorNode(Node):
                         if self.time_publisher:
                             joint_state.header.stamp = self.clock.clock
                         if hasattr(self.task, "estimator"):
-                            if (
-                                self.task.estimator
-                                and self.task.estimator.initialized()
-                            ):
-                                self.task.estimator.publish_state(
-                                    stamp.sec, stamp.nanosec
-                                )
+                            if (self.task.estimator and self.task.estimator.initialized()):
+                                self.task.estimator.publish_state(stamp.sec, stamp.nanosec)
                         else:
                             joint_state.position = position.tolist()
                             joint_state.velocity = velocity.tolist()
@@ -467,18 +462,10 @@ class ConnectorNode(Node):
                             transform.child_frame_id = "base_link"
                             if self.fixed:
                                 transform.transform.translation.z = 0.4
-                            transform.transform.rotation.w = sensors.imu_data.attitude[
-                                0
-                            ]
-                            transform.transform.rotation.x = sensors.imu_data.attitude[
-                                1
-                            ]
-                            transform.transform.rotation.y = sensors.imu_data.attitude[
-                                2
-                            ]
-                            transform.transform.rotation.z = sensors.imu_data.attitude[
-                                3
-                            ]
+                            transform.transform.rotation.w = sensors.imu_data.attitude[0]
+                            transform.transform.rotation.x = sensors.imu_data.attitude[1]
+                            transform.transform.rotation.y = sensors.imu_data.attitude[2]
+                            transform.transform.rotation.z = sensors.imu_data.attitude[3]
                             self.tf_broadcaster.sendTransform(transform)
             except TimeoutException as e:
                 self.get_logger().error("====== TIMED OUT! ======")

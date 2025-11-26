@@ -56,7 +56,7 @@ whole_body:
   sigma: 0.05
   B: 0.0
   Fv: 0.0
-  lambda_tangential: 0.01
+  lambda_tangential: 0.001
   smooth: 0.8
 
 max_torque: 2.5

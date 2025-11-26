@@ -17,7 +17,7 @@ class PDWithFrictionCompensation():
         self.max_control = float_or_list(
             yaml_config["max_control"], num_joints)
 
-    def clip(self,control)        :
+    def clip(self, control):
         return np.clip(control, -self.max_control, self.max_control)
 
     def compute_pd(self, ref_position, ref_velocity, ref_acceleration, position, velocity):
@@ -30,16 +30,15 @@ class PDWithFrictionCompensation():
         return self.clip(self.compute_pd(ref_position, ref_velocity, ref_acceleration, position, velocity) +
                          self.compute_friction(ref_position, ref_velocity, ref_acceleration, position, velocity))
 
+
 class PDWithFrictionAndGravityCompensation(PDWithFrictionCompensation):
     def __init__(self, robot, yaml_config):
         super().__init__(robot, yaml_config)
         self.robot = robot
 
     def compute_control(self, ref_position, ref_velocity, ref_acceleration, position, velocity):
-        print(  self.robot.data.nle[6:])
         return self.clip(self.compute_pd(ref_position, ref_velocity, ref_acceleration, position, velocity) +
                          self.compute_friction(
                              ref_position, ref_velocity, ref_acceleration, position, velocity)
-                          + self.robot.data.nle[6:]
+                         + self.robot.data.nle[6:]
                          )
-

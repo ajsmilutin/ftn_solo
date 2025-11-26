@@ -1,3 +1,4 @@
+from typing import Any
 from transitions import Machine
 import numpy as np
 from .task_base import TaskWithInitPose
@@ -69,6 +70,7 @@ class JointMotionData(MotionData):
 class Phase:
     def __init__(self, order, config):
         self.order = order
+        print("Config: ", config)
         self.duration = config["duration"]
         self.torso_height = (
             None if not "torso_height" in config else config["torso_height"]
@@ -79,6 +81,15 @@ class Phase:
                 self.motions.append(EEFMotionData(motion_cfg))
             else:
                 self.motions.append(JointMotionData(motion_cfg))
+
+    def __str__(self):
+        return "Phase: {}, Duration: {}, Torso Height: {}, Motions: {}".format(self.order, self.duration, self.torso_height, self.motions)
+
+
+class PDConfig:
+    def __init__(self, config):
+        self.Kp = config["Kp"] if "Kp" in config else 800.0
+        self.Kd = config["Kd"] if "Kd" in config else 10.0
 
 
 def parse_sequence(config):
@@ -167,7 +178,7 @@ class TaskMoveBase(TaskWithInitPose):
         self.initialized = False
         self.num_faces = 8
         self.friction_coefficient = 0.9
-        self.torso_height = 0.25
+        self.torso_height = self.config["torso_height"] if "torso_height" in self.config else 0.25
         self.friction_cones = dict()
         self.sequence = parse_sequence(self.config["crawl"])
         self.phase = -1
@@ -185,6 +196,10 @@ class TaskMoveBase(TaskWithInitPose):
         self.status_publisher.publish(String(data="starting"))
         self.new_contact = 0
         self.ending_contact = 0
+        self.trajectory_planner_config = self.config[
+            "trajectory_planner"] if "trajectory_planner" in self.config else dict()
+        self.eef_pid = PDConfig(
+            self.trajectory_planner_config["eef_position"] if "eef_position" in self.trajectory_planner_config else dict())
 
     def get_tmp_friction_cones(self):
         self.tmp_friction_cones = self.estimator.get_friction_cones(
@@ -295,22 +310,14 @@ class TaskMoveBase(TaskWithInitPose):
 
     def compute_base_trajectory_start(self, t, q, qv, sensors):
         self.get_tmp_friction_cones()
-        duration = self.sequence[self.phase].duration
+        duration = self.sequence[self.phase + 1].duration
         self.origin_pose = self.get_new_origin(self.tmp_friction_cones)
         if self.sequence[self.phase].torso_height:
             self.torso_height = self.sequence[self.phase].torso_height
         self.trajectory_planner = TrajectoryPlanner(
-            self.robot.pin_robot.model, self.base_index, self.origin_pose
-        )
+            self.robot.pin_robot.model, self.base_index, self.origin_pose, yaml.dump(self.trajectory_planner_config))
         self.trajectory_planner.start_computation(
-            t,
-            self.tmp_friction_cones,
-            self.tmp_next_friction_cones,
-            self.estimator.estimated_q,
-            duration,
-            self.torso_height,
-            self.max_torque,
-        )
+            t, self.tmp_friction_cones, self.tmp_next_friction_cones, self.estimator.estimated_q, duration, self.torso_height, self.max_torque)
 
     def compute_base_trajectory_finish(self, t):
         self.update_phase()
@@ -331,8 +338,8 @@ class TaskMoveBase(TaskWithInitPose):
                     motion.eef_index,
                     np.array([True, True, True], dtype=bool),
                     pin.SE3.Identity(),
-                    400,
-                    5,
+                    self.eef_pid.Kp,
+                    self.eef_pid.Kd,
                 )
                 eef_trajectory = SplineTrajectory(True)
                 position = self.robot.pin_robot.data.oMf[motion.eef_index].translation
@@ -414,21 +421,13 @@ class TaskMoveBase(TaskWithInitPose):
                 self.status_publisher.publish(
                     String(data="Creating estimator"))
                 self.estimator = FixedPointsEstimator(
-                    0.001,
-                    self.robot.pin_robot.model,
-                    self.robot.pin_robot.data,
-                    self.robot.end_eff_ids,
-                )
+                    0.001, self.robot.pin_robot.model, self.robot.pin_robot.data, self.robot.end_eff_ids)
                 self.estimator.init(t, q, qv, sensors)
                 return False
             elif self.estimator.initialized():
-                if (
-                    not self.trajectory_planner
-                    or not self.trajectory_planner.computation_started()
-                ):
+                if (not self.trajectory_planner or not self.trajectory_planner.computation_started()):
                     self.status_publisher.publish(
-                        String(data="Starting initialization")
-                    )
+                        String(data="Starting initialization"))
                     self.compute_base_trajectory_start(t, q, qv, sensors)
                     return False
                 elif self.trajectory_planner.computation_done():
@@ -439,8 +438,7 @@ class TaskMoveBase(TaskWithInitPose):
                                 self.ending_contact = motion.eef_index
                                 break
                     self.status_publisher.publish(
-                        String(data="Finished trajectory planning")
-                    )
+                        String(data="Finished trajectory planning"))
                     self.compute_base_trajectory_finish(t)
                     self.finished = False
                     self.can_step = False
@@ -539,22 +537,14 @@ class TaskMoveBase(TaskWithInitPose):
                     )
                 )
                 self.get_tmp_friction_cones()
-                duration = self.sequence[self.phase].duration
+                duration = self.sequence[self.phase + 1].duration
                 self.origin_pose = self.get_new_origin(self.tmp_friction_cones)
                 if self.sequence[self.phase].torso_height:
                     self.torso_height = self.sequence[self.phase].torso_height
                 self.trajectory_planner = TrajectoryPlanner(
-                    self.robot.pin_robot.model, self.base_index, self.origin_pose
-                )
+                    self.robot.pin_robot.model, self.base_index, self.origin_pose, yaml.dump(self.trajectory_planner_config))
                 self.trajectory_planner.start_computation(
-                    t,
-                    self.tmp_friction_cones,
-                    self.tmp_next_friction_cones,
-                    self.estimator.estimated_q,
-                    duration,
-                    self.torso_height,
-                    self.max_torque,
-                )
+                    t, self.tmp_friction_cones, self.tmp_next_friction_cones, self.estimator.estimated_q, duration, self.torso_height, self.max_torque)
                 self.fix_eef()
                 del self.motions[-1]
                 self.init_qp()
