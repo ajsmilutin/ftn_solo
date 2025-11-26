@@ -63,6 +63,10 @@ And you should be able to see something like this:
 ![Mujoco starting up](images/mujoco_and_solo.gif)
 
 
+# Things to test
+
+Before merging these should be tested:
+
 ```
 ros2 launch ftn_solo robot_launch.py task:=move_base config:=crawl_demo.yaml hardware:=mujoco
 
@@ -71,5 +75,9 @@ ros2 launch ftn_solo robot_launch.py task:=move_base config:=up_wall.yaml hardwa
 ros2 launch ftn_solo robot_launch.py task:=draw_shapes config:=draw_shapes.yaml hardware:=mujoco
 
 ros2 launch ftn_solo robot_launch.py task:=joint_spline config:=eurobot_demo.yaml hardware:=mujoco
+
+ros2 launch ftn_solo robot_launch.py task:=move_base config:=crawl_go2.yaml hardware:=mujoco robot_version:=unitree_go2
+
+ros2 launch ftn_solo robot_launch.py task:=move_base config:=crawl_anymal.yaml hardware:=mujoco robot_version:=anymal pos:="[0.0, 0.0, 0.625]"
 
 ```
